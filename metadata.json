@@ -1,0 +1,8 @@
+{
+  "name": "ClassManager Pro (Web Edition)",
+  "description": "A comprehensive classroom management web application designed with a mobile-first approach. Features include class registry (Modular/Term), student management, attendance tracking, behavioral scoring, grade management, and data visualization using Recharts. Integrated with Gemini for generating lesson plans.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
