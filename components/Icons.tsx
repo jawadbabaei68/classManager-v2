@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { 
   Users, 
@@ -18,7 +19,11 @@ import {
   Home,
   Settings,
   Download,
-  Sparkles
+  Sparkles,
+  Lock,
+  LogOut,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 
 export const Icons = {
@@ -40,5 +45,9 @@ export const Icons = {
   Home,
   Settings,
   Download,
-  Sparkles
+  Sparkles,
+  Lock,
+  LogOut,
+  Eye,
+  EyeOff
 };

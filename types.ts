@@ -1,3 +1,4 @@
+
 export enum ClassType {
   MODULAR = 'MODULAR', // پودمانی
   TERM = 'TERM',       // ترمی
@@ -65,6 +66,7 @@ export interface Classroom {
   id: string;
   name: string;
   bookName: string; // نام کتاب/موضوع
+  academicYear: string; // سال تحصیلی
   type: ClassType;
   students: Student[];
   sessions: Session[];
@@ -73,4 +75,12 @@ export interface Classroom {
     mainFile?: AIResource; // فایل اصلی کتاب برای هوش مصنوعی
     lessonPlans: string[];
   };
+}
+
+export interface GlobalSettings {
+  teacherName: string;
+  username?: string;
+  password?: string;
+  currentAcademicYear: string;
+  availableYears: string[]; // لیست سال‌های تحصیلی موجود
 }

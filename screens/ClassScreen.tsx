@@ -1,10 +1,15 @@
-import React, { useState } from 'react';
-import { Classroom, Student, Session, ClassType, AttendanceStatus } from '../types';
-import { updateClass, deleteClass, exportToCSV } from '../services/storageService';
+
+import React, { useState, useEffect } from 'react';
+import { Classroom, Student, Session, ClassType, AttendanceStatus, GlobalSettings } from '../types';
+import { updateClass, deleteClass, getSettings } from '../services/storageService';
 import { generateLessonPlan } from '../services/geminiService';
+import { formatJalaali, parseJalaaliToIso } from '../services/dateService';
 import { Icons } from '../components/Icons';
 import { SessionScreen } from './SessionScreen';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import * as XLSX from 'xlsx';
+import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 interface ClassScreenProps {
   classroom: Classroom;
@@ -17,25 +22,55 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   const [currentTab, setCurrentTab] = useState<Tab>('STUDENTS');
   const [activeSession, setActiveSession] = useState<Session | null>(null);
   const [data, setData] = useState<Classroom>(classroom);
+  const [settings, setSettings] = useState<GlobalSettings | null>(null);
   
   // Modals State
   const [showAddStudent, setShowAddStudent] = useState(false);
   const [newStudentName, setNewStudentName] = useState('');
+  
+  // New Session Modal State
+  const [showNewSessionModal, setShowNewSessionModal] = useState(false);
+  const [newSessionDate, setNewSessionDate] = useState('');
+  const [newSessionDay, setNewSessionDay] = useState('');
+
+  // AI & Resources
   const [lessonTopic, setLessonTopic] = useState('');
   const [generatingAI, setGeneratingAI] = useState(false);
   
   // Chart Detail State
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<string | null>(null);
 
+  useEffect(() => {
+    getSettings().then(setSettings);
+  }, []);
+
   const handleUpdate = async (updated: Classroom) => {
-    await updateClass(updated);
-    setData(updated);
+    try {
+      await updateClass(updated);
+      setData(updated);
+    } catch (e) {
+      console.error(e);
+      alert("خطا در ذخیره اطلاعات");
+    }
   };
 
   const handleDeleteClass = async () => {
-    if (window.confirm('آیا از حذف این کلاس اطمینان دارید؟')) {
-      await deleteClass(data.id);
-      onBack();
+    const confirmMsg = `آیا از حذف کلاس «${data.name}» مطمئن هستید؟\nاین عملیات غیرقابل بازگشت است.`;
+    if (window.confirm(confirmMsg)) {
+      try {
+        await deleteClass(data.id);
+        onBack();
+      } catch (error) {
+        alert("خطا در حذف کلاس.");
+      }
+    }
+  };
+
+  const handleDeleteStudent = async (e: React.MouseEvent, studentId: string) => {
+    e.stopPropagation();
+    if (window.confirm('آیا از حذف این دانش‌آموز و تمام سوابق او اطمینان دارید؟')) {
+        const updated = { ...data, students: data.students.filter(s => s.id !== studentId) };
+        await handleUpdate(updated);
     }
   };
 
@@ -50,6 +85,129 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     handleUpdate(updated);
     setNewStudentName('');
     setShowAddStudent(false);
+  };
+
+  // --- Excel Import Logic ---
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const bstr = evt.target?.result;
+      const wb = XLSX.read(bstr, { type: 'binary' });
+      const wsname = wb.SheetNames[0];
+      const ws = wb.Sheets[wsname];
+      const rawData = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+      
+      const newStudents: Student[] = [];
+      
+      rawData.forEach((row) => {
+         if (row && row.length > 0) {
+             const name = row[0]; 
+             if (typeof name === 'string' && name.trim().length > 0) {
+                 newStudents.push({
+                     id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                     name: name.trim()
+                 });
+             }
+         }
+      });
+
+      if (newStudents.length > 0) {
+          const updated = { ...data, students: [...data.students, ...newStudents] };
+          handleUpdate(updated);
+          alert(`${newStudents.length} دانش‌آموز با موفقیت اضافه شدند.`);
+      } else {
+          alert("هیچ نامی در فایل اکسل یافت نشد.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = '';
+  };
+
+  // --- Full Excel Export Logic ---
+  const handleFullExport = () => {
+    const wb = XLSX.utils.book_new();
+    
+    // 1. Grades Sheet
+    const gradesHeader = ["نام دانش‌آموز"];
+    if (data.type === ClassType.MODULAR) {
+        [1,2,3,4,5].forEach(i => gradesHeader.push(`پودمان ${i}`));
+    } else {
+        gradesHeader.push("مستمر ۱", "پایانی ۱", "مستمر ۲", "پایانی ۲");
+    }
+    
+    const gradesData = data.students.map(s => {
+        const row: any[] = [s.name];
+        const perf = data.performance?.find(p => p.studentId === s.id);
+        if (data.type === ClassType.MODULAR) {
+             [1,2,3,4,5].forEach(i => {
+                 row.push(perf?.gradesModular.find(g => g.moduleId === i)?.score || 0);
+             });
+        } else {
+             row.push(
+                 perf?.gradesTerm.find(g => g.termId === 1)?.continuous || 0,
+                 perf?.gradesTerm.find(g => g.termId === 1)?.final || 0,
+                 perf?.gradesTerm.find(g => g.termId === 2)?.continuous || 0,
+                 perf?.gradesTerm.find(g => g.termId === 2)?.final || 0,
+             );
+        }
+        return row;
+    });
+    const wsGrades = XLSX.utils.aoa_to_sheet([gradesHeader, ...gradesData]);
+    wsGrades['!cols'] = [{ wch: 20 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+    wsGrades['!views'] = [{ rightToLeft: true }];
+    XLSX.utils.book_append_sheet(wb, wsGrades, "نمرات");
+
+    // 2. Attendance Sheet
+    const attHeader = ["تاریخ", "روز", ...data.students.map(s => s.name)];
+    const attData = data.sessions.map(sess => {
+        const row: any[] = [formatJalaali(sess.date), sess.dayOfWeek];
+        data.students.forEach(s => {
+            const rec = sess.records.find(r => r.studentId === s.id);
+            let status = "-";
+            if (rec?.attendance === AttendanceStatus.PRESENT) status = "حاضر";
+            else if (rec?.attendance === AttendanceStatus.ABSENT) status = "غایب";
+            else if (rec?.attendance === AttendanceStatus.LATE) status = "تاخیر";
+            row.push(status);
+        });
+        return row;
+    });
+    const wsAtt = XLSX.utils.aoa_to_sheet([attHeader, ...attData]);
+    wsAtt['!views'] = [{ rightToLeft: true }];
+    XLSX.utils.book_append_sheet(wb, wsAtt, "حضور و غیاب");
+
+    // 3. Discipline Sheet
+    const discRows: any[] = [["نام دانش‌آموز", "تاریخ", "مورد انضباطی", "امتیاز مثبت"]];
+    data.sessions.forEach(sess => {
+        sess.records.forEach(rec => {
+            const s = data.students.find(st => st.id === rec.studentId);
+            const issues = [];
+            if (rec.discipline.sleep) issues.push("خواب");
+            if (rec.discipline.badBehavior) issues.push("بی‌انضباطی");
+            if (rec.discipline.expelled) issues.push("اخراج");
+            
+            if (issues.length > 0 || rec.positivePoints > 0) {
+                discRows.push([
+                    s?.name || "نامشخص",
+                    formatJalaali(sess.date),
+                    issues.join(" - "),
+                    rec.positivePoints > 0 ? rec.positivePoints : ""
+                ]);
+            }
+        });
+    });
+    const wsDisc = XLSX.utils.aoa_to_sheet(discRows);
+    wsDisc['!views'] = [{ rightToLeft: true }];
+    XLSX.utils.book_append_sheet(wb, wsDisc, "موارد انضباطی");
+
+    // Metadata for the filename
+    const teacher = settings?.teacherName || "Teacher";
+    const year = settings?.currentAcademicYear || "Year";
+    const fileName = `Report_${data.name}_${teacher}_${year}.xlsx`;
+    
+    XLSX.writeFile(wb, fileName);
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, studentId?: string) => {
@@ -69,28 +227,99 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     }
   };
 
-  const createSession = () => {
+  // Native Camera Handler
+  const handleNativeCamera = async (studentId: string) => {
+    try {
+      const image = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.DataUrl,
+        source: CameraSource.Prompt, // Asks user: Camera or Photos
+      });
+
+      if (image.dataUrl) {
+         const updatedStudents = data.students.map(s => 
+            s.id === studentId ? { ...s, avatarUrl: image.dataUrl } : s
+          );
+          handleUpdate({ ...data, students: updatedStudents });
+      }
+    } catch (error) {
+      console.log("Camera cancelled or failed", error);
+    }
+  };
+
+  // --- Session Management ---
+  
+  const openSessionModal = () => {
+      // Init default values
+      const today = new Date();
+      const todayStr = formatJalaali(today.toISOString());
+      const dayName = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' }).format(today);
+      
+      setNewSessionDate(todayStr);
+      setNewSessionDay(dayName);
+      setShowNewSessionModal(true);
+  };
+
+  const handleConfirmCreateSession = () => {
+    const isoDate = parseJalaaliToIso(newSessionDate);
+    if (!isoDate) {
+        alert("فرمت تاریخ نادرست است");
+        return;
+    }
+
     const newSession: Session = {
       id: Date.now().toString(),
       classId: data.id,
-      date: new Date().toISOString(),
-      dayOfWeek: new Intl.DateTimeFormat('fa-IR', { weekday: 'long' }).format(new Date()),
+      date: isoDate,
+      dayOfWeek: newSessionDay,
       records: []
     };
     setActiveSession(newSession);
+    setShowNewSessionModal(false);
   };
 
-  const handleSessionComplete = (completedSession: Session) => {
-    const exists = data.sessions.find(s => s.id === completedSession.id);
+  const handleSessionUpdate = (updatedSession: Session, shouldExit: boolean) => {
+    const exists = data.sessions.find(s => s.id === updatedSession.id);
     let updatedSessions;
     if (exists) {
-        updatedSessions = data.sessions.map(s => s.id === completedSession.id ? completedSession : s);
+        updatedSessions = data.sessions.map(s => s.id === updatedSession.id ? updatedSession : s);
     } else {
-        updatedSessions = [completedSession, ...data.sessions];
+        updatedSessions = [updatedSession, ...data.sessions];
     }
+    
     const updated = { ...data, sessions: updatedSessions };
     handleUpdate(updated);
-    setActiveSession(null);
+    
+    if (shouldExit) {
+        setActiveSession(null);
+    }
+  };
+
+  // --- Resources Logic ---
+  const handleViewResource = () => {
+      if (!data.resources.mainFile) return;
+      
+      try {
+        const base64Data = data.resources.mainFile.data;
+        const mimeType = data.resources.mainFile.mimeType;
+        
+        // Decode Base64
+        const byteCharacters = atob(base64Data);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {type: mimeType});
+        
+        // Create URL
+        const fileURL = URL.createObjectURL(blob);
+        window.open(fileURL, '_blank');
+      } catch (error) {
+          console.error("Error opening file", error);
+          alert("خطا در باز کردن فایل. ممکن است فایل آسیب دیده باشد.");
+      }
   };
 
   const generateAIPlan = async () => {
@@ -116,8 +345,8 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       <SessionScreen 
         session={activeSession} 
         students={data.students} 
-        onSave={handleSessionComplete}
-        onCancel={() => setActiveSession(null)}
+        allSessions={data.sessions}
+        onUpdate={handleSessionUpdate}
       />
     );
   }
@@ -126,15 +355,17 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
 
   const renderStudents = () => (
     <div className="space-y-4 pb-24">
-      <div className="flex gap-3 mb-6">
-        <button onClick={() => setShowAddStudent(true)} className="flex-1 bg-emerald-600 text-white py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all font-bold text-sm">
+      <div className="flex gap-3 mb-6 overflow-x-auto pb-2 no-scrollbar">
+        <button onClick={() => setShowAddStudent(true)} className="flex-1 min-w-[140px] bg-emerald-600 text-white py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 hover:bg-emerald-700 transition-all font-bold text-sm whitespace-nowrap">
           <Icons.AddUser size={18} />
           افزودن دانش‌آموز
         </button>
-        <button onClick={() => exportToCSV(data)} className="bg-white text-emerald-700 border border-emerald-200 py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-50 transition-all font-bold text-sm">
-          <Icons.Download size={18} />
-          اکسل
-        </button>
+        
+        <label className="flex-1 min-w-[140px] bg-white text-emerald-700 border border-emerald-200 py-3 px-4 rounded-xl flex items-center justify-center gap-2 shadow-sm hover:bg-emerald-50 transition-all font-bold text-sm cursor-pointer whitespace-nowrap">
+             <Icons.Upload size={18} />
+             ورود از اکسل
+             <input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} className="hidden" />
+        </label>
       </div>
 
       {data.students.length === 0 && (
@@ -146,8 +377,16 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
 
       <div className="grid gap-3">
         {data.students.map(student => (
-            <div key={student.id} className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all">
-            <div className="relative group">
+            <div key={student.id} className="bg-white p-3 rounded-2xl border border-gray-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all cursor-pointer" onClick={() => setSelectedStudentForReport(student.id)}>
+            <div 
+                className="relative group cursor-pointer"
+                onClick={(e) => {
+                    if (Capacitor.isNativePlatform()) {
+                        e.stopPropagation();
+                        handleNativeCamera(student.id);
+                    }
+                }}
+            >
                 {student.avatarUrl ? (
                 <img src={student.avatarUrl} alt={student.name} className="w-14 h-14 rounded-full object-cover border-2 border-emerald-100 shadow-sm" />
                 ) : (
@@ -155,23 +394,23 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                     <Icons.Camera size={22} />
                 </div>
                 )}
-                <input 
-                type="file" 
-                accept="image/*"
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                onChange={(e) => handleImageUpload(e, student.id)}
-                />
+                {/* Only show file input if NOT native platform */}
+                {!Capacitor.isNativePlatform() && (
+                    <input 
+                    type="file" 
+                    accept="image/*"
+                    className="absolute inset-0 opacity-0 cursor-pointer"
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={(e) => handleImageUpload(e, student.id)}
+                    />
+                )}
             </div>
             <div className="flex-1">
                 <h3 className="font-bold text-gray-900 text-base">{student.name}</h3>
             </div>
             <button 
-                onClick={() => {
-                if(window.confirm('حذف دانش‌آموز؟')) {
-                    handleUpdate({...data, students: data.students.filter(s => s.id !== student.id)});
-                }
-                }}
-                className="p-3 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                onClick={(e) => handleDeleteStudent(e, student.id)}
+                className="p-3 text-red-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors z-10"
             >
                 <Icons.Delete size={18} />
             </button>
@@ -183,18 +422,31 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
 
   const renderSessions = () => (
     <div className="space-y-6 pb-24">
-      <button onClick={createSession} className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 hover:scale-[1.02] transition-transform">
+      <button onClick={openSessionModal} className="w-full bg-gradient-to-r from-emerald-500 to-teal-600 text-white py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-emerald-200 hover:scale-[1.02] transition-transform">
         <Icons.Plus size={22} />
-        <span className="font-bold">شروع کلاس جدید</span>
+        <span className="font-bold">شروع جلسه جدید</span>
       </button>
       
       {/* AI Section */}
       <div className="bg-white p-5 rounded-2xl shadow-sm border border-emerald-100">
-        <div className="flex items-center gap-2 mb-4 text-emerald-800">
-            <div className="p-2 bg-emerald-100 rounded-lg">
-                <Icons.Sparkles size={18} className="text-emerald-600" />
+        <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2 text-emerald-800">
+                <div className="p-2 bg-emerald-100 rounded-lg">
+                    <Icons.Sparkles size={18} className="text-emerald-600" />
+                </div>
+                <h3 className="font-bold">دستیار هوشمند</h3>
             </div>
-            <h3 className="font-bold">دستیار هوشمند</h3>
+            
+            {data.resources.mainFile && (
+                <button 
+                    onClick={handleViewResource}
+                    className="text-xs flex items-center gap-1 text-blue-600 bg-blue-50 px-2 py-1 rounded-lg hover:bg-blue-100 transition-colors"
+                    title="مشاهده فایل پیوست"
+                >
+                    <Icons.Eye size={14} />
+                    مشاهده منبع
+                </button>
+            )}
         </div>
         
         {data.resources.mainFile && (
@@ -250,7 +502,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                 >
                 <div className="flex justify-between items-center">
                     <div>
-                    <p className="font-bold text-gray-800">{new Date(session.date).toLocaleDateString('fa-IR')}</p>
+                    <p className="font-bold text-gray-800">{formatJalaali(session.date)}</p>
                     <p className="text-xs text-gray-400 mt-1">{session.dayOfWeek}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1">
@@ -396,9 +648,9 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                 if (rec.attendance === AttendanceStatus.LATE) sLate++;
                 sPositive += rec.positivePoints;
                 
-                if (rec.discipline.sleep) sDisciplineEvents.push(`${new Date(sess.date).toLocaleDateString('fa-IR')}: خوابیدن در کلاس`);
-                if (rec.discipline.badBehavior) sDisciplineEvents.push(`${new Date(sess.date).toLocaleDateString('fa-IR')}: بی‌انضباطی`);
-                if (rec.discipline.expelled) sDisciplineEvents.push(`${new Date(sess.date).toLocaleDateString('fa-IR')}: اخراج از کلاس`);
+                if (rec.discipline.sleep) sDisciplineEvents.push(`${formatJalaali(sess.date)}: خوابیدن در کلاس`);
+                if (rec.discipline.badBehavior) sDisciplineEvents.push(`${formatJalaali(sess.date)}: بی‌انضباطی`);
+                if (rec.discipline.expelled) sDisciplineEvents.push(`${formatJalaali(sess.date)}: اخراج از کلاس`);
             }
         });
 
@@ -482,6 +734,16 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       return (
         <div className="pb-24 space-y-6">
             {selectedStudentForReport && renderStudentReport()}
+            
+            <div className="grid grid-cols-1 gap-4">
+                <button 
+                    onClick={handleFullExport}
+                    className="bg-white border-2 border-emerald-500 text-emerald-700 py-4 rounded-2xl flex items-center justify-center gap-3 shadow-sm hover:bg-emerald-50 transition-colors"
+                >
+                    <Icons.Download size={24} />
+                    <span className="font-bold">دریافت خروجی جامع اکسل</span>
+                </button>
+            </div>
 
             {/* Overall Chart */}
             <div className="bg-white p-6 rounded-3xl shadow-sm border border-emerald-100">
@@ -600,6 +862,46 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
             </div>
           </div>
         </div>
+      )}
+
+      {/* New Session Confirmation Modal */}
+      {showNewSessionModal && (
+          <div className="fixed inset-0 bg-emerald-900/20 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+              <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+                  <div className="flex items-center gap-2 mb-4 text-emerald-800">
+                      <Icons.Calendar size={24} />
+                      <h3 className="text-lg font-black">شروع جلسه جدید</h3>
+                  </div>
+                  <p className="text-xs text-gray-500 mb-4">لطفاً تاریخ و روز جلسه را بررسی و تایید کنید.</p>
+                  
+                  <div className="space-y-3 mb-6">
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">تاریخ</label>
+                          <input 
+                              type="text" 
+                              value={newSessionDate}
+                              onChange={e => setNewSessionDate(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-gray-900 text-left"
+                              dir="ltr"
+                          />
+                      </div>
+                      <div>
+                          <label className="block text-xs font-bold text-gray-500 mb-1">روز هفته</label>
+                          <input 
+                              type="text" 
+                              value={newSessionDay}
+                              onChange={e => setNewSessionDay(e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-200 p-3 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-gray-900"
+                          />
+                      </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                      <button onClick={() => setShowNewSessionModal(false)} className="flex-1 py-3 text-gray-500 font-bold hover:bg-gray-50 rounded-xl">انصراف</button>
+                      <button onClick={handleConfirmCreateSession} className="flex-1 bg-emerald-600 text-white rounded-xl py-3 font-bold shadow-lg shadow-emerald-200">تایید و شروع</button>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );

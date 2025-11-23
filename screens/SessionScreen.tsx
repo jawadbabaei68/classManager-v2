@@ -1,20 +1,26 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Student, SessionRecord, AttendanceStatus } from '../types';
+import { formatJalaali, parseJalaaliToIso } from '../services/dateService';
 import { Icons } from '../components/Icons';
 
 interface SessionScreenProps {
   session: Session;
   students: Student[];
-  onSave: (s: Session) => void;
-  onCancel: () => void;
+  allSessions: Session[];
+  onUpdate: (s: Session, shouldExit: boolean) => void;
 }
 
-export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students, onSave, onCancel }) => {
+export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students, allSessions, onUpdate }) => {
   const [records, setRecords] = useState<SessionRecord[]>([]);
-  const [dateStr, setDateStr] = useState(session.date.split('T')[0]);
+  const [dateStr, setDateStr] = useState('');
   const [dayStr, setDayStr] = useState(session.dayOfWeek);
+  const [savingStatus, setSavingStatus] = useState<'saved' | 'saving' | 'pending'>('saved');
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Initialize only once on mount
   useEffect(() => {
+    setDateStr(formatJalaali(session.date));
     if (session.records.length > 0) {
       setRecords(session.records);
     } else {
@@ -28,7 +34,42 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
       }));
       setRecords(initialRecords);
     }
-  }, [session, students]);
+  }, []); // Empty dependency array ensures this runs once per session screen mount
+
+  // Find previous session
+  const previousSession = useMemo(() => {
+    if (!allSessions || allSessions.length < 2) return null;
+    
+    const sorted = [...allSessions].sort((a, b) => 
+        new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
+    
+    const currentIndex = sorted.findIndex(s => s.id === session.id);
+    if (currentIndex > 0) {
+        return sorted[currentIndex - 1];
+    }
+    return null;
+  }, [allSessions, session.id]);
+
+  // Auto-save Effect
+  useEffect(() => {
+    if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+    }
+
+    // Skip initial render
+    if (records.length === 0) return;
+
+    setSavingStatus('pending');
+    
+    autoSaveTimerRef.current = setTimeout(() => {
+        handleSave(false);
+    }, 1000); // 1 second debounce
+
+    return () => {
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    };
+  }, [records, dateStr, dayStr]);
 
   const updateRecord = (studentId: string, updates: Partial<SessionRecord>) => {
     setRecords(prev => prev.map(r => r.studentId === studentId ? { ...r, ...updates } : r));
@@ -44,13 +85,31 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
     }));
   };
 
-  const handleSave = () => {
-    onSave({
+  const handleSave = (shouldExit: boolean) => {
+    if (!dateStr) return; // Wait for initialization
+    
+    const isoDate = parseJalaaliToIso(dateStr);
+    // If date is invalid during auto-save, just skip saving to avoid corrupting data
+    // But if exiting, user might want to know. For auto-save we stay silent.
+    if (!isoDate) return; 
+
+    setSavingStatus('saving');
+    
+    onUpdate({
         ...session,
-        date: new Date(dateStr).toISOString(),
+        date: isoDate,
         dayOfWeek: dayStr,
         records
-    });
+    }, shouldExit);
+
+    // Fake a small delay for UI feedback if not exiting
+    if (!shouldExit) {
+        setTimeout(() => setSavingStatus('saved'), 500);
+    }
+  };
+
+  const handleBack = () => {
+      handleSave(true);
   };
 
   const calculateScore = (r: SessionRecord) => {
@@ -62,24 +121,54 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
       return score;
   };
 
+  const getPreviousStatus = (studentId: string) => {
+      if (!previousSession) return null;
+      const record = previousSession.records.find(r => r.studentId === studentId);
+      if (!record) return null;
+      
+      switch(record.attendance) {
+          case AttendanceStatus.ABSENT:
+              return { text: 'غایب جلسه قبل', color: 'text-red-500 bg-red-50 border-red-100' };
+          case AttendanceStatus.LATE:
+              return { text: 'تاخیر جلسه قبل', color: 'text-amber-600 bg-amber-50 border-amber-100' };
+          default:
+              return null;
+      }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-vazir">
       {/* Header */}
       <div className="bg-white p-4 sticky top-0 z-20 shadow-sm border-b border-gray-100">
         <div className="flex justify-between items-center mb-4 max-w-3xl mx-auto w-full">
-            <button onClick={onCancel} className="text-gray-500 font-medium hover:text-gray-700 px-2">انصراف</button>
-            <h2 className="font-black text-lg text-emerald-800">مدیریت جلسه</h2>
-            <button onClick={handleSave} className="bg-emerald-600 text-white px-4 py-1.5 rounded-lg font-bold flex items-center gap-1 shadow-emerald-200 shadow-md active:scale-95 transition-transform">
-                <Icons.Save size={16} /> ذخیره
+            <button onClick={handleBack} className="text-gray-600 font-bold text-sm hover:text-gray-900 px-2 flex items-center gap-1">
+                <Icons.Back size={16} />
+                بازگشت
             </button>
+            <div className="flex flex-col items-center">
+                <h2 className="font-black text-lg text-emerald-800">مدیریت جلسه</h2>
+                <span className={`text-[10px] font-bold transition-colors ${
+                    savingStatus === 'saved' ? 'text-emerald-500' : 
+                    savingStatus === 'saving' ? 'text-blue-500' : 'text-amber-500'
+                }`}>
+                    {savingStatus === 'saved' ? 'ذخیره شد' : 
+                     savingStatus === 'saving' ? 'در حال ذخیره...' : 'تغییرات ذخیره نشده'}
+                </span>
+            </div>
+            <div className="w-16"></div> {/* Spacer to center title */}
         </div>
         <div className="flex gap-3 max-w-3xl mx-auto w-full">
-            <input 
-                type="date" 
-                value={dateStr} 
-                onChange={(e) => setDateStr(e.target.value)}
-                className="border border-gray-200 p-2.5 rounded-xl flex-1 text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-900"
-            />
+            <div className="relative flex-1">
+                <input 
+                    type="text" 
+                    value={dateStr} 
+                    onChange={(e) => setDateStr(e.target.value)}
+                    placeholder="۱۴۰۳/۰۱/۰۱"
+                    className="w-full border border-gray-200 p-2.5 rounded-xl text-sm bg-gray-50 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-900 text-left pl-8"
+                    dir="ltr"
+                />
+                <Icons.Calendar className="absolute left-2.5 top-2.5 text-gray-400 w-4 h-4" />
+            </div>
             <input 
                 type="text" 
                 value={dayStr}
@@ -95,6 +184,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
             const record = records.find(r => r.studentId === student.id);
             if (!record) return null;
             const score = calculateScore(record);
+            const prevStatus = getPreviousStatus(student.id);
 
             return (
                 <div key={student.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100 transition-shadow hover:shadow-md">
@@ -107,7 +197,14 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                                 <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400"><Icons.Users size={20}/></div>
                              )}
                              <div>
-                                <h3 className="font-bold text-gray-800">{student.name}</h3>
+                                <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                    {student.name}
+                                    {prevStatus && (
+                                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${prevStatus.color}`}>
+                                            {prevStatus.text}
+                                        </span>
+                                    )}
+                                </h3>
                                 <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${score < 0 ? 'bg-red-50 text-red-500' : score > 0 ? 'bg-emerald-50 text-emerald-600' : 'text-gray-400'}`}>
                                     {score > 0 ? '+' : ''}{score} امتیاز
                                 </span>
