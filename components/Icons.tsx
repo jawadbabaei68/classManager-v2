@@ -6,7 +6,7 @@ import {
   Calendar, 
   BarChart2, 
   Plus, 
-  ChevronLeft, 
+  ChevronRight, 
   Trash2, 
   Save, 
   Camera, 
@@ -23,7 +23,11 @@ import {
   Lock,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  Sun,
+  Moon,
+  Pencil,
+  Phone
 } from 'lucide-react';
 
 export const Icons = {
@@ -32,12 +36,13 @@ export const Icons = {
   Calendar,
   Chart: BarChart2,
   Plus,
-  Back: ChevronLeft,
+  Back: ChevronRight,
   Delete: Trash2,
   Save,
   Camera,
   Upload,
   Present: CheckCircle,
+  CheckCircle,
   Absent: XCircle,
   Late: Clock,
   AddUser: UserPlus,
@@ -49,5 +54,9 @@ export const Icons = {
   Lock,
   LogOut,
   Eye,
-  EyeOff
+  EyeOff,
+  Sun,
+  Moon,
+  Pencil,
+  Phone
 };

@@ -1,5 +1,5 @@
 
-import { Classroom, GlobalSettings } from '../types';
+import { Classroom, GlobalSettings, BackupPayload } from '../types';
 
 const DB_NAME = 'ClassManagerDB';
 const STORE_CLASSES = 'classes';
@@ -83,7 +83,7 @@ export const getSettings = async (): Promise<GlobalSettings | null> => {
       request.onsuccess = () => {
         const data = request.result;
         if (data) {
-           // Backward compatibility: ensure availableYears exists
+           // Backward compatibility
            if (!data.availableYears) {
              data.availableYears = [data.currentAcademicYear];
            }
@@ -113,34 +113,55 @@ export const saveSettings = async (settings: GlobalSettings): Promise<void> => {
 
 // --- Restore ---
 
-export const restoreData = async (data: Classroom[]): Promise<void> => {
+export const restoreData = async (data: any): Promise<void> => {
   const db = await openDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_CLASSES, 'readwrite');
-    const store = tx.objectStore(STORE_CLASSES);
-    
-    // Clear existing data
-    const clearRequest = store.clear();
-    
-    clearRequest.onsuccess = () => {
-      // Add new data
-      let completed = 0;
-      if (data.length === 0) {
-        resolve();
-        return;
-      }
+  
+  // Normalize Data
+  let classesToRestore: Classroom[] = [];
+  let settingsToRestore: GlobalSettings | null = null;
 
-      data.forEach(item => {
-        const req = store.add(item);
-        req.onsuccess = () => {
-          completed++;
-          if (completed === data.length) resolve();
-        };
-        req.onerror = () => reject(req.error);
-      });
-    };
+  if (Array.isArray(data)) {
+      // Old Format: Just an array of classes
+      classesToRestore = data;
+  } else if (data && typeof data === 'object') {
+      // New Format: BackupPayload
+      if (data.classes && Array.isArray(data.classes)) {
+          classesToRestore = data.classes;
+      }
+      if (data.settings) {
+          settingsToRestore = data.settings;
+      }
+  } else {
+      throw new Error("فرمت فایل نامعتبر است.");
+  }
+
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction([STORE_CLASSES, STORE_SETTINGS], 'readwrite');
+    const classStore = tx.objectStore(STORE_CLASSES);
+    const settingsStore = tx.objectStore(STORE_SETTINGS);
     
-    clearRequest.onerror = () => reject(clearRequest.error);
+    // Clear existing stores
+    classStore.clear();
+    
+    // We update settings if present, otherwise we keep existing? 
+    // Usually restore implies overwriting everything. 
+    // If settings are provided in backup, we overwrite. 
+    // But if restoring old backup (just classes), maybe we should keep current settings?
+    // Let's decide to overwrite settings ONLY if they exist in backup to be safe.
+    if (settingsToRestore) {
+        settingsStore.put({ ...settingsToRestore, id: 'global' });
+    }
+
+    // Add classes
+    classesToRestore.forEach(item => {
+        classStore.add(item);
+    });
+
+    // Wait for the transaction to complete successfully
+    tx.oncomplete = () => resolve();
+    
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(new Error("Transaction aborted"));
   });
 };
 
