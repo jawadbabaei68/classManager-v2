@@ -47,10 +47,29 @@ export const saveClass = async (classroom: Classroom): Promise<void> => {
   return new Promise((resolve, reject) => {
     const tx = db.transaction(STORE_CLASSES, 'readwrite');
     const store = tx.objectStore(STORE_CLASSES);
-    const request = store.put(classroom);
+    
+    // Always update the timestamp when saving locally
+    const classWithTimestamp = { ...classroom, updatedAt: Date.now() };
+    
+    const request = store.put(classWithTimestamp);
     
     request.onsuccess = () => resolve();
     request.onerror = () => reject(request.error);
+  });
+};
+
+export const bulkUpsertClasses = async (classes: Classroom[]): Promise<void> => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_CLASSES, 'readwrite');
+    const store = tx.objectStore(STORE_CLASSES);
+    
+    classes.forEach(cls => {
+        store.put(cls);
+    });
+    
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
   });
 };
 
@@ -135,6 +154,12 @@ export const restoreData = async (data: any): Promise<void> => {
       throw new Error("فرمت فایل نامعتبر است.");
   }
 
+  // Add timestamps if missing
+  classesToRestore = classesToRestore.map(c => ({
+      ...c,
+      updatedAt: c.updatedAt || Date.now()
+  }));
+
   return new Promise((resolve, reject) => {
     const tx = db.transaction([STORE_CLASSES, STORE_SETTINGS], 'readwrite');
     const classStore = tx.objectStore(STORE_CLASSES);
@@ -143,11 +168,6 @@ export const restoreData = async (data: any): Promise<void> => {
     // Clear existing stores
     classStore.clear();
     
-    // We update settings if present, otherwise we keep existing? 
-    // Usually restore implies overwriting everything. 
-    // If settings are provided in backup, we overwrite. 
-    // But if restoring old backup (just classes), maybe we should keep current settings?
-    // Let's decide to overwrite settings ONLY if they exist in backup to be safe.
     if (settingsToRestore) {
         settingsStore.put({ ...settingsToRestore, id: 'global' });
     }

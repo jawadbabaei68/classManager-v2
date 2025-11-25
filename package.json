@@ -17,6 +17,7 @@
     "@capacitor/preferences": "^6.0.3",
     "@capacitor/share": "^6.0.3",
     "@google/genai": "^1.30.0",
+    "@supabase/supabase-js": "^2.84.0",
     "html2canvas": "^1.4.1",
     "idb": "^8.0.0",
     "lucide-react": "^0.344.0",

@@ -86,6 +86,7 @@ export interface Classroom {
     mainFile?: AIResource; // فایل اصلی کتاب
     lessonPlans: string[]; // Legacy AI plans (kept for compatibility)
   };
+  updatedAt?: number; // Timestamp for sync
 }
 
 export interface GlobalSettings {
@@ -95,6 +96,8 @@ export interface GlobalSettings {
   currentAcademicYear: string;
   availableYears: string[]; // لیست سال‌های تحصیلی موجود
   theme?: 'light' | 'dark';
+  supabaseUrl?: string;
+  supabaseKey?: string;
 }
 
 export interface BackupPayload {

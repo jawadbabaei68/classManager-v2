@@ -44,6 +44,7 @@ export const Icons = {
   Present: CheckCircle,
   CheckCircle,
   Absent: XCircle,
+  XCircle,
   Late: Clock,
   AddUser: UserPlus,
   File: FileText,

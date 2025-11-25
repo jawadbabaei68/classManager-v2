@@ -22,10 +22,12 @@
       body {
         font-family: 'Vazirmatn', sans-serif;
         background-color: #f3f4f6;
+        color: #111827; /* gray-900 default for light mode */
         overscroll-behavior-y: none; /* Prevent pull-to-refresh on mobile */
       }
       .dark body {
         background-color: #111827;
+        color: #f3f4f6; /* gray-100 default for dark mode */
       }
       /* Hide scrollbar for clean mobile look */
       .no-scrollbar::-webkit-scrollbar {
@@ -52,7 +54,8 @@
     "@capacitor/app": "https://aistudiocdn.com/@capacitor/app@^7.1.0",
     "@capacitor/share": "https://aistudiocdn.com/@capacitor/share@^7.0.2",
     "html2canvas": "https://aistudiocdn.com/html2canvas@^1.4.1",
-    "@capacitor/preferences": "https://aistudiocdn.com/@capacitor/preferences@^7.0.2"
+    "@capacitor/preferences": "https://aistudiocdn.com/@capacitor/preferences@^7.0.2",
+    "@supabase/supabase-js": "https://aistudiocdn.com/@supabase/supabase-js@^2.84.0"
   }
 }
 </script>
