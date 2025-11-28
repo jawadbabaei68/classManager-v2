@@ -8,10 +8,21 @@
     @apply text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-900;
     font-family: 'Vazirmatn', sans-serif;
     direction: rtl;
+    overscroll-behavior-y: none;
   }
   
   /* Fix for inputs being unreadable in light mode if specific classes are missing */
   input, textarea, select {
     @apply text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
   }
 }

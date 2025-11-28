@@ -2,7 +2,7 @@ import { Preferences } from '@capacitor/preferences';
 import { OnlineLicenseData, LicenseInfo } from '../types';
 
 // Updated URL as requested
-const LICENSE_API_URL = 'https://raw.githubusercontent.com/jawadbabaei68/class-manager-licenses/refs/heads/main/licenses.json';
+const LICENSE_API_URL = 'https://mrhonaramoz.ir/licenses.json';
 const LICENSE_STORAGE_KEY = 'app_license_data';
 
 export const checkLocalLicense = async (): Promise<'VALID' | 'EXPIRED' | 'NOT_FOUND'> => {
