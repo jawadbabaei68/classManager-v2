@@ -461,13 +461,27 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectClass, isAuthent
         // Fetch latest settings from DB to ensure password is included
         const currentSettings = await getSettings();
 
+        // Optimize classes for backup
+        const optimizedClasses = classes.map(cls => {
+             // Create a shallow copy of resources
+             const newResources = { ...cls.resources, lessonPlans: [] as string[] };
+             
+             // Remove very large files (> 5MB Base64) to prevent backup bloat/crash
+             // Essential data (grades, attendance) is preserved, but huge attachments are skipped.
+             if (newResources.mainFile && newResources.mainFile.data.length > 5 * 1024 * 1024) {
+                 newResources.mainFile = undefined; 
+             }
+             
+             return { ...cls, resources: newResources };
+        });
+
         const payload: BackupPayload = {
             meta: {
                 version: '2.0',
                 date: new Date().toISOString(),
                 app: 'ClassManagerPro'
             },
-            classes: classes,
+            classes: optimizedClasses,
             settings: currentSettings || settings
         };
         

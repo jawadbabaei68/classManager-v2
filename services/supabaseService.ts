@@ -137,6 +137,13 @@ const insertInChunks = async (supabase: SupabaseClient, table: string, data: any
 
 const uploadClassToSupabase = async (supabase: SupabaseClient, cls: Classroom, onProgress: (msg: string) => void) => {
     
+    // Optimize Resources
+    const optimizedResources = { ...cls.resources, lessonPlans: [] };
+    // Remove very large files (> 5MB Base64) to prevent payload failures
+    if (optimizedResources.mainFile && optimizedResources.mainFile.data.length > 5 * 1024 * 1024) {
+        optimizedResources.mainFile = undefined;
+    }
+
     // 1. Upsert Class Info (Fast)
     onProgress(`ارسال کلاس: ${cls.name}`);
     await supabase.from('classes').upsert({
@@ -145,7 +152,7 @@ const uploadClassToSupabase = async (supabase: SupabaseClient, cls: Classroom, o
         book_name: cls.bookName,
         academic_year: cls.academicYear,
         type: cls.type,
-        resources: cls.resources,
+        resources: optimizedResources,
         updated_at: cls.updatedAt || Date.now()
     });
 
