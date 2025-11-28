@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">classmanager-v2</string>
-    <string name="title_activity_main">classmanager-v2</string>
+    <string name="app_name">MrHonaramoz</string>
+    <string name="title_activity_main">MrHonaramoz</string>
     <string name="package_name">com.javad.classmanager</string>
     <string name="custom_url_scheme">com.javad.classmanager</string>
 </resources>

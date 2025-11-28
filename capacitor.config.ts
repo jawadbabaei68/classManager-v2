@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.javad.classmanager',
-  appName: 'classmanager-v2',
+  appName: 'MrHonaramoz',
   webDir: 'dist'
 };
 

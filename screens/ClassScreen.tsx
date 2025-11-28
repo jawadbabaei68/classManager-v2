@@ -366,20 +366,61 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     XLSX.writeFile(wb, fileName);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, studentId?: string) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const compressImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const result = reader.result as string;
-        if (studentId) {
-          const updatedStudents = data.students.map(s => 
-            s.id === studentId ? { ...s, avatarUrl: result } : s
-          );
-          handleUpdate({ ...data, students: updatedStudents });
-        }
+      reader.onload = (e) => {
+        const img = new Image();
+        img.src = e.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_SIZE = 400; // Limit resolution for profile picture
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > MAX_SIZE) {
+              height *= MAX_SIZE / width;
+              width = MAX_SIZE;
+            }
+          } else {
+            if (height > MAX_SIZE) {
+              width *= MAX_SIZE / height;
+              height = MAX_SIZE;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            // Compress to JPEG with 0.6 quality
+            resolve(canvas.toDataURL('image/jpeg', 0.6));
+          } else {
+            resolve(img.src); // Fallback
+          }
+        };
+        img.onerror = reject;
       };
+      reader.onerror = reject;
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>, studentId?: string) => {
+    const file = e.target.files?.[0];
+    if (file && studentId) {
+      try {
+        const compressedData = await compressImage(file);
+        const updatedStudents = data.students.map(s => 
+          s.id === studentId ? { ...s, avatarUrl: compressedData } : s
+        );
+        handleUpdate({ ...data, students: updatedStudents });
+      } catch (error) {
+        console.error("Image processing error", error);
+        alert("خطا در پردازش تصویر");
+      }
     }
   };
 
@@ -404,7 +445,8 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   const handleNativeCamera = async (studentId: string) => {
     try {
       const image = await Camera.getPhoto({
-        quality: 80,
+        quality: 60, // Reduced quality for compression
+        width: 400, // Reduce dimensions for compression
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Prompt,
