@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Session, Student, SessionRecord, AttendanceStatus, DailyLessonPlan, AIResource } from '../types';
 import { formatJalaali, parseJalaaliToIso } from '../services/dateService';
@@ -202,7 +203,6 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                     onClick={() => setShowPlanModal(true)}
                     className="p-2 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 rounded-xl flex items-center gap-1"
                 >
-                    {/* Fix: Replaced Icons.FileText with Icons.File */}
                     <Icons.File size={20} />
                     <span className="text-xs font-bold hidden sm:inline">طرح درس</span>
                 </button>
@@ -240,79 +240,84 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
             return (
                 <div key={student.id} className="bg-white dark:bg-gray-800 rounded-2xl p-4 shadow-sm border border-gray-100 dark:border-gray-700 transition-shadow hover:shadow-md">
                     {/* Row 1: Info & Attendance */}
-                    <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+                        {/* User Info */}
+                        <div className="flex items-center gap-4 w-full sm:w-auto">
                              {student.avatarUrl ? (
-                                <img src={student.avatarUrl} className="w-12 h-12 rounded-full object-cover border border-gray-100 dark:border-gray-600 shadow-sm" />
+                                <img src={student.avatarUrl} className="w-14 h-14 rounded-full object-cover border-2 border-white dark:border-gray-700 shadow-sm shrink-0" />
                              ) : (
-                                <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-400"><Icons.Users size={20}/></div>
+                                <div className="w-14 h-14 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center text-gray-400 shrink-0"><Icons.Users size={24}/></div>
                              )}
-                             <div>
-                                <h3 className="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                                    {student.name}
+                             <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="font-bold text-gray-900 dark:text-white text-base truncate max-w-[200px] sm:max-w-xs">
+                                        {student.name}
+                                    </h3>
                                     {prevStatus && (
-                                        <span className={`text-[10px] px-1.5 py-0.5 rounded border ${prevStatus.color}`}>
+                                        <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold whitespace-nowrap ${prevStatus.color}`}>
                                             {prevStatus.text}
                                         </span>
                                     )}
-                                </h3>
-                                <span className={`text-xs font-mono font-bold px-2 py-0.5 rounded ${score < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-500 dark:text-red-400' : score > 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`}>
-                                    {score > 0 ? '+' : ''}{score} امتیاز
-                                </span>
+                                </div>
+                                <div className="mt-1 flex items-center">
+                                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${score < 0 ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400' : score > 0 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'}`}>
+                                        {score > 0 ? '+' : ''}{score} امتیاز
+                                    </span>
+                                </div>
                              </div>
                         </div>
                         
                         {/* Attendance Toggles */}
-                        <div className="flex bg-gray-50 dark:bg-gray-700 rounded-xl p-1 border border-gray-100 dark:border-gray-600">
+                        <div className="flex bg-gray-50 dark:bg-gray-700 rounded-xl p-1.5 border border-gray-100 dark:border-gray-600 w-full sm:w-auto shrink-0">
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.PRESENT })}
-                                className={`p-2.5 rounded-lg transition-all ${record.attendance === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
-                                <Icons.Present size={18} />
+                                <Icons.Present size={20} />
                             </button>
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.LATE })}
-                                className={`p-2.5 rounded-lg transition-all ${record.attendance === AttendanceStatus.LATE ? 'bg-amber-400 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.LATE ? 'bg-amber-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
-                                <Icons.Late size={18} />
+                                <Icons.Late size={20} />
                             </button>
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.ABSENT })}
-                                className={`p-2.5 rounded-lg transition-all ${record.attendance === AttendanceStatus.ABSENT ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.ABSENT ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
-                                <Icons.Absent size={18} />
+                                <Icons.Absent size={20} />
                             </button>
                         </div>
                     </div>
 
                     {/* Row 2: Discipline & Positive */}
                     {record.attendance !== AttendanceStatus.ABSENT && (
-                        <div className="border-t border-dashed border-gray-100 dark:border-gray-700 pt-4 space-y-4">
+                        <div className="border-t border-dashed border-gray-200 dark:border-gray-700 pt-4 space-y-4 animate-in slide-in-from-top-2 duration-200">
                             {/* Discipline Checkboxes */}
                             <div className="flex gap-2 flex-wrap">
                                 <button 
                                     onClick={() => updateDiscipline(student.id, 'sleep')}
-                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${record.discipline.sleep ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-bold' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300'}`}
+                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${record.discipline.sleep ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-bold' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'}`}
                                 >
                                     خواب (-۰.۵)
                                 </button>
                                 <button 
                                     onClick={() => updateDiscipline(student.id, 'badBehavior')}
-                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${record.discipline.badBehavior ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-bold' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300'}`}
+                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${record.discipline.badBehavior ? 'bg-red-50 dark:bg-red-900/30 border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 font-bold' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'}`}
                                 >
                                     بی‌انضباطی (-۰.۵)
                                 </button>
                                 <button 
                                     onClick={() => updateDiscipline(student.id, 'expelled')}
-                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${record.discipline.expelled ? 'bg-red-100 dark:bg-red-900/50 border-red-500 dark:border-red-800 text-red-700 dark:text-red-300 font-bold' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300'}`}
+                                    className={`text-xs px-3 py-1.5 rounded-lg border transition-all ${record.discipline.expelled ? 'bg-red-100 dark:bg-red-900/50 border-red-500 dark:border-red-800 text-red-700 dark:text-red-300 font-bold' : 'border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'}`}
                                 >
                                     اخراج (-۱)
                                 </button>
                             </div>
 
                             {/* Positive Points Slider */}
-                            <div className="bg-emerald-50/50 dark:bg-emerald-900/10 p-3 rounded-xl flex items-center gap-3">
-                                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400">نمره مثبت:</span>
+                            <div className="bg-emerald-50/50 dark:bg-emerald-900/10 p-3 rounded-xl flex items-center gap-3 border border-emerald-100/50 dark:border-emerald-900/20">
+                                <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 whitespace-nowrap">نمره مثبت:</span>
                                 <input 
                                     type="range" 
                                     min="0" 
@@ -320,7 +325,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                                     step="0.5"
                                     value={record.positivePoints}
                                     onChange={(e) => updateRecord(student.id, { positivePoints: parseFloat(e.target.value) })}
-                                    className="flex-1 h-1.5 bg-emerald-200 dark:bg-emerald-800 rounded-lg appearance-none cursor-pointer accent-emerald-600 dark:accent-emerald-500"
+                                    className="flex-1 h-2 bg-emerald-200 dark:bg-emerald-800 rounded-lg appearance-none cursor-pointer accent-emerald-600 dark:accent-emerald-500"
                                 />
                                 <span className="text-sm w-6 text-center font-black text-emerald-600 dark:text-emerald-400">{record.positivePoints}</span>
                             </div>
@@ -331,7 +336,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                                 placeholder="یادداشت (مثال: پرسش کلاسی عالی بود...)"
                                 value={record.note}
                                 onChange={(e) => updateRecord(student.id, { note: e.target.value })}
-                                className="w-full text-xs border-b border-gray-200 dark:border-gray-600 py-2 focus:border-emerald-500 outline-none bg-transparent placeholder-gray-300 dark:placeholder-gray-600 text-gray-900 dark:text-white"
+                                className="w-full text-sm border border-gray-200 dark:border-gray-600 rounded-xl px-3 py-2.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none bg-white dark:bg-gray-700/50 placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-white transition-all"
                             />
                         </div>
                     )}
@@ -346,7 +351,6 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
             <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-3xl p-6 shadow-2xl border dark:border-gray-700 my-auto">
                 <div className="flex justify-between items-center mb-6">
                      <h3 className="text-lg font-black text-gray-900 dark:text-white flex items-center gap-2">
-                        {/* Fix: Replaced Icons.FileText with Icons.File */}
                         <Icons.File className="text-purple-600 dark:text-purple-400" />
                         طرح درس روزانه
                      </h3>

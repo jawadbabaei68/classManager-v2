@@ -45,9 +45,15 @@ export interface Session {
 
 export interface Student {
   id: string;
-  name: string;
-  phoneNumber?: string; // شماره تماس
-  avatarUrl?: string; // Base64 or URL
+  name: string; // Local app uses this
+  phoneNumber?: string; 
+  avatarUrl?: string; 
+  
+  // Admin/DB app fields (Supabase)
+  full_name?: string;
+  national_id?: string;
+  father_name?: string;
+  profile_id?: string;
 }
 
 export interface GradeModular {
@@ -89,6 +95,23 @@ export interface Classroom {
   updatedAt?: number; // Timestamp for sync
 }
 
+export interface CustomReportRow {
+  studentId: string;
+  col1: string;
+  col2: string;
+  comment: string;
+}
+
+export interface CustomReport {
+  id: string;
+  title: string;
+  classId: string;
+  className: string;
+  date: string; // ISO
+  rows: CustomReportRow[];
+  updatedAt: number;
+}
+
 export interface GlobalSettings {
   teacherName: string;
   username?: string;
@@ -108,6 +131,7 @@ export interface BackupPayload {
   };
   classes: Classroom[];
   settings?: GlobalSettings;
+  customReports?: CustomReport[];
 }
 
 export interface LicenseInfo {
@@ -121,4 +145,32 @@ export interface OnlineLicenseData {
     start: string;
     end: string;
   }
+}
+
+// --- Admin / Supabase Types ---
+
+export interface ClassGroup {
+  id: string;
+  name: string;
+  grade_level?: string;
+  created_at?: string;
+}
+
+export interface Teacher {
+  id: string;
+  full_name: string;
+  personnel_id?: string;
+  phone?: string;
+  profile_id?: string;
+  created_at?: string;
+}
+
+export interface Subject {
+  id: string;
+  name: string;
+  type: 'term' | 'modular';
+  class_id: string;
+  teacher_id?: string;
+  teacher?: Teacher;
+  created_at?: string;
 }

@@ -1,10 +1,11 @@
 
-import { Classroom, GlobalSettings, BackupPayload } from '../types';
+import { Classroom, GlobalSettings, BackupPayload, CustomReport } from '../types';
 
 const DB_NAME = 'ClassManagerDB';
 const STORE_CLASSES = 'classes';
 const STORE_SETTINGS = 'settings';
-const DB_VERSION = 2;
+const STORE_REPORTS = 'custom_reports';
+const DB_VERSION = 3;
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -17,6 +18,9 @@ const openDB = (): Promise<IDBDatabase> => {
       }
       if (!db.objectStoreNames.contains(STORE_SETTINGS)) {
         db.createObjectStore(STORE_SETTINGS, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(STORE_REPORTS)) {
+        db.createObjectStore(STORE_REPORTS, { keyPath: 'id' });
       }
     };
 
@@ -89,6 +93,48 @@ export const updateClass = async (updatedClass: Classroom): Promise<void> => {
   return saveClass(updatedClass);
 };
 
+// --- Custom Reports ---
+
+export const getCustomReports = async (): Promise<CustomReport[]> => {
+  try {
+    const db = await openDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_REPORTS, 'readonly');
+      const store = tx.objectStore(STORE_REPORTS);
+      const request = store.getAll();
+      
+      request.onsuccess = () => resolve(request.result || []);
+      request.onerror = () => reject(request.error);
+    });
+  } catch (error) {
+    return [];
+  }
+};
+
+export const saveCustomReport = async (report: CustomReport): Promise<void> => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_REPORTS, 'readwrite');
+    const store = tx.objectStore(STORE_REPORTS);
+    const request = store.put({ ...report, updatedAt: Date.now() });
+    
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
+export const deleteCustomReport = async (id: string): Promise<void> => {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_REPORTS, 'readwrite');
+    const store = tx.objectStore(STORE_REPORTS);
+    const request = store.delete(id);
+    
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+};
+
 // --- Global Settings ---
 
 export const getSettings = async (): Promise<GlobalSettings | null> => {
@@ -138,6 +184,7 @@ export const restoreData = async (data: any): Promise<void> => {
   // Normalize Data
   let classesToRestore: Classroom[] = [];
   let settingsToRestore: GlobalSettings | null = null;
+  let reportsToRestore: CustomReport[] = [];
 
   if (Array.isArray(data)) {
       // Old Format: Just an array of classes
@@ -150,6 +197,9 @@ export const restoreData = async (data: any): Promise<void> => {
       if (data.settings) {
           settingsToRestore = data.settings;
       }
+      if (data.customReports && Array.isArray(data.customReports)) {
+          reportsToRestore = data.customReports;
+      }
   } else {
       throw new Error("فرمت فایل نامعتبر است.");
   }
@@ -161,12 +211,17 @@ export const restoreData = async (data: any): Promise<void> => {
   }));
 
   return new Promise((resolve, reject) => {
-    const tx = db.transaction([STORE_CLASSES, STORE_SETTINGS], 'readwrite');
+    // Include STORE_REPORTS in transaction if it exists (it should with v3)
+    const stores = [STORE_CLASSES, STORE_SETTINGS, STORE_REPORTS];
+    const tx = db.transaction(stores, 'readwrite');
+    
     const classStore = tx.objectStore(STORE_CLASSES);
     const settingsStore = tx.objectStore(STORE_SETTINGS);
+    const reportStore = tx.objectStore(STORE_REPORTS);
     
     // Clear existing stores
     classStore.clear();
+    reportStore.clear();
     
     if (settingsToRestore) {
         settingsStore.put({ ...settingsToRestore, id: 'global' });
@@ -175,6 +230,11 @@ export const restoreData = async (data: any): Promise<void> => {
     // Add classes
     classesToRestore.forEach(item => {
         classStore.add(item);
+    });
+
+    // Add reports
+    reportsToRestore.forEach(item => {
+        reportStore.add(item);
     });
 
     // Wait for the transaction to complete successfully

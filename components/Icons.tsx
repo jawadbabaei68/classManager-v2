@@ -27,7 +27,12 @@ import {
   Sun,
   Moon,
   Pencil,
-  Phone
+  Phone,
+  UserX,
+  Trophy,
+  AlertTriangle,
+  Ban,
+  ClipboardList
 } from 'lucide-react';
 
 export const Icons = {
@@ -59,5 +64,10 @@ export const Icons = {
   Sun,
   Moon,
   Pencil,
-  Phone
+  Phone,
+  UserX,
+  Trophy,
+  Alert: AlertTriangle,
+  Ban,
+  Report: ClipboardList
 };

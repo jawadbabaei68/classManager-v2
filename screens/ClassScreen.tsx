@@ -5,7 +5,7 @@ import { updateClass, deleteClass, getSettings } from '../services/storageServic
 import { formatJalaali, parseJalaaliToIso } from '../services/dateService';
 import { Icons } from '../components/Icons';
 import { SessionScreen } from './SessionScreen';
-import { ResponsiveContainer, BarChart, Bar, XAxis, CartesianGrid, LabelList, Tooltip, YAxis } from 'recharts';
+import { ResponsiveContainer, BarChart, Bar, XAxis, CartesianGrid, LabelList, YAxis } from 'recharts';
 import * as XLSX from 'xlsx';
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
@@ -129,6 +129,14 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       setShowEditClassInfo(false);
   };
 
+  const deleteSession = async (e: React.MouseEvent, sessionId: string) => {
+      e.stopPropagation();
+      if (window.confirm("آیا از حذف این جلسه اطمینان دارید؟")) {
+          const updated = { ...data, sessions: data.sessions.filter(s => s.id !== sessionId) };
+          await handleUpdate(updated);
+      }
+  };
+
   // --- Excel Import Logic ---
   const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -151,7 +159,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                  newStudents.push({
                      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
                      name: name.trim(),
-                     phoneNumber: row[1] ? String(row[1]) : undefined // Assuming column 2 is phone
+                     phoneNumber: row[1] ? String(row[1]) : undefined 
                  });
              }
          }
@@ -169,33 +177,27 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     e.target.value = '';
   };
 
-  // --- Share as Image Logic (Optimized for No Whitespace) ---
+  // --- Share as Image Logic ---
   const shareReportAsImage = async (elementId: string, title: string) => {
     const element = document.getElementById(elementId);
     if (!element) return;
 
-    // Fixed width for consistent high-quality export without layout shifts
     const EXPORT_WIDTH = 800; 
-
-    // Create a temporary container off-screen to hold the clone
-    // This isolates the clone from the current view's constraints (like scrollbars or flex containers)
     const container = document.createElement('div');
     container.style.position = 'fixed';
-    container.style.top = '0'; // align top
-    container.style.left = '0'; // align left
+    container.style.top = '0'; 
+    container.style.left = '0'; 
     container.style.zIndex = '-9999';
     container.style.opacity = '0';
     container.style.pointerEvents = 'none';
     document.body.appendChild(container);
 
-    // Clone the element
     const clone = element.cloneNode(true) as HTMLElement;
     
-    // Reset styles on the clone to ensure it flows naturally
     clone.style.width = `${EXPORT_WIDTH}px`;
     clone.style.minWidth = `${EXPORT_WIDTH}px`;
     clone.style.maxWidth = `${EXPORT_WIDTH}px`;
-    clone.style.height = 'auto'; // allow expansion
+    clone.style.height = 'auto'; 
     clone.style.maxHeight = 'none';
     clone.style.overflow = 'visible';
     clone.style.position = 'relative';
@@ -205,7 +207,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     clone.style.boxShadow = 'none';
     clone.style.transform = 'none';
     
-    // Ensure Dark/Light mode consistency
     const isDark = document.documentElement.classList.contains('dark');
     if (isDark) {
         clone.classList.add('dark');
@@ -217,7 +218,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         clone.style.color = '#111827';
     }
 
-    // Add Footer
     const footer = document.createElement('div');
     footer.innerText = 'جواد بابائی | mrhonaramoz.ir';
     footer.style.textAlign = 'center';
@@ -232,22 +232,20 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
 
     container.appendChild(clone);
 
-    // Give DOM a moment to render the clone
     await new Promise(resolve => setTimeout(resolve, 300));
 
     try {
       const canvas = await html2canvas(clone, {
-        scale: 2, // High resolution
+        scale: 2, 
         useCORS: true,
         backgroundColor: isDark ? '#111827' : '#ffffff',
         width: EXPORT_WIDTH,
-        windowWidth: EXPORT_WIDTH, // Critical for preventing right whitespace in RTL
+        windowWidth: EXPORT_WIDTH, 
         scrollX: 0,
         scrollY: 0,
         x: 0,
         y: 0,
         onclone: (doc) => {
-            // Force text color to ensure readability if classes don't apply
             const el = doc.getElementById(elementId);
             if (el) {
                 el.style.color = isDark ? '#f3f4f6' : '#111827';
@@ -284,86 +282,111 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   };
 
   // --- Full Excel Export Logic ---
-  const handleFullExport = () => {
-    const wb = XLSX.utils.book_new();
-    
-    // 1. Grades Sheet
-    const gradesHeader = ["نام دانش‌آموز", "شماره تماس"];
-    if (data.type === ClassType.MODULAR) {
-        [1,2,3,4,5].forEach(i => gradesHeader.push(`پودمان ${i}`));
-    } else {
-        gradesHeader.push("مستمر ۱", "پایانی ۱", "مستمر ۲", "پایانی ۲");
-    }
-    
-    const gradesData = data.students.map(s => {
-        const row: any[] = [s.name, s.phoneNumber || ""];
-        const perf = data.performance?.find(p => p.studentId === s.id);
+  const handleFullExport = async () => {
+    try {
+        const wb = XLSX.utils.book_new();
+        
+        // 1. Grades Sheet
+        const gradesHeader = ["نام دانش‌آموز", "شماره تماس"];
         if (data.type === ClassType.MODULAR) {
-             [1,2,3,4,5].forEach(i => {
-                 row.push(perf?.gradesModular.find(g => g.moduleId === i)?.score || 0);
+            [1,2,3,4,5].forEach(i => gradesHeader.push(`پودمان ${i}`));
+        } else {
+            gradesHeader.push("مستمر ۱", "پایانی ۱", "مستمر ۲", "پایانی ۲");
+        }
+        
+        const gradesData = data.students.map(s => {
+            const row: any[] = [s.name, s.phoneNumber || ""];
+            const perf = data.performance?.find(p => p.studentId === s.id);
+            if (data.type === ClassType.MODULAR) {
+                 [1,2,3,4,5].forEach(i => {
+                     row.push(perf?.gradesModular.find(g => g.moduleId === i)?.score || 0);
+                 });
+            } else {
+                 row.push(
+                     perf?.gradesTerm.find(g => g.termId === 1)?.continuous || 0,
+                     perf?.gradesTerm.find(g => g.termId === 1)?.final || 0,
+                     perf?.gradesTerm.find(g => g.termId === 2)?.continuous || 0,
+                     perf?.gradesTerm.find(g => g.termId === 2)?.final || 0,
+                 );
+            }
+            return row;
+        });
+        const wsGrades = XLSX.utils.aoa_to_sheet([gradesHeader, ...gradesData]);
+        wsGrades['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
+        wsGrades['!views'] = [{ rightToLeft: true }];
+        XLSX.utils.book_append_sheet(wb, wsGrades, "نمرات");
+
+        // 2. Attendance Sheet
+        const attHeader = ["تاریخ", "روز", ...data.students.map(s => s.name)];
+        const attData = data.sessions.map(sess => {
+            const row: any[] = [formatJalaali(sess.date), sess.dayOfWeek];
+            data.students.forEach(s => {
+                const rec = sess.records.find(r => r.studentId === s.id);
+                let status = "-";
+                if (rec?.attendance === AttendanceStatus.PRESENT) status = "حاضر";
+                else if (rec?.attendance === AttendanceStatus.ABSENT) status = "غایب";
+                else if (rec?.attendance === AttendanceStatus.LATE) status = "تاخیر";
+                row.push(status);
+            });
+            return row;
+        });
+        const wsAtt = XLSX.utils.aoa_to_sheet([attHeader, ...attData]);
+        wsAtt['!views'] = [{ rightToLeft: true }];
+        XLSX.utils.book_append_sheet(wb, wsAtt, "حضور و غیاب");
+
+        // 3. Discipline Sheet
+        const discRows: any[] = [["نام دانش‌آموز", "تاریخ", "مورد انضباطی", "امتیاز مثبت"]];
+        data.sessions.forEach(sess => {
+            sess.records.forEach(rec => {
+                const s = data.students.find(st => st.id === rec.studentId);
+                const issues = [];
+                if (rec.discipline.sleep) issues.push("خواب");
+                if (rec.discipline.badBehavior) issues.push("بی‌انضباطی");
+                if (rec.discipline.expelled) issues.push("اخراج");
+                
+                if (issues.length > 0 || rec.positivePoints > 0) {
+                    discRows.push([
+                        s?.name || "نامشخص",
+                        formatJalaali(sess.date),
+                        issues.join(" - "),
+                        rec.positivePoints > 0 ? rec.positivePoints : ""
+                    ]);
+                }
+            });
+        });
+        const wsDisc = XLSX.utils.aoa_to_sheet(discRows);
+        wsDisc['!views'] = [{ rightToLeft: true }];
+        XLSX.utils.book_append_sheet(wb, wsDisc, "موارد انضباطی");
+
+        const teacher = settings?.teacherName || "Teacher";
+        const year = settings?.currentAcademicYear || "Year";
+        const safeName = data.name.replace(/[^a-z0-9]/gi, '_');
+        const fileName = `Report_${safeName}_${year}.xlsx`;
+        
+        if (Capacitor.isNativePlatform()) {
+             const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+             
+             // Save to Cache directory which is safe and usually doesn't require complex permissions
+             const savedFile = await Filesystem.writeFile({
+                path: fileName,
+                data: wbout,
+                directory: Directory.Cache
+             });
+
+             await Share.share({
+                title: 'خروجی اکسل کلاس',
+                text: `گزارش کلاس ${data.name}`,
+                url: savedFile.uri,
+                dialogTitle: 'اشتراک‌گذاری فایل اکسل',
              });
         } else {
-             row.push(
-                 perf?.gradesTerm.find(g => g.termId === 1)?.continuous || 0,
-                 perf?.gradesTerm.find(g => g.termId === 1)?.final || 0,
-                 perf?.gradesTerm.find(g => g.termId === 2)?.continuous || 0,
-                 perf?.gradesTerm.find(g => g.termId === 2)?.final || 0,
-             );
+             XLSX.writeFile(wb, fileName);
         }
-        return row;
-    });
-    const wsGrades = XLSX.utils.aoa_to_sheet([gradesHeader, ...gradesData]);
-    wsGrades['!cols'] = [{ wch: 20 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }, { wch: 10 }];
-    wsGrades['!views'] = [{ rightToLeft: true }];
-    XLSX.utils.book_append_sheet(wb, wsGrades, "نمرات");
 
-    // 2. Attendance Sheet
-    const attHeader = ["تاریخ", "روز", ...data.students.map(s => s.name)];
-    const attData = data.sessions.map(sess => {
-        const row: any[] = [formatJalaali(sess.date), sess.dayOfWeek];
-        data.students.forEach(s => {
-            const rec = sess.records.find(r => r.studentId === s.id);
-            let status = "-";
-            if (rec?.attendance === AttendanceStatus.PRESENT) status = "حاضر";
-            else if (rec?.attendance === AttendanceStatus.ABSENT) status = "غایب";
-            else if (rec?.attendance === AttendanceStatus.LATE) status = "تاخیر";
-            row.push(status);
-        });
-        return row;
-    });
-    const wsAtt = XLSX.utils.aoa_to_sheet([attHeader, ...attData]);
-    wsAtt['!views'] = [{ rightToLeft: true }];
-    XLSX.utils.book_append_sheet(wb, wsAtt, "حضور و غیاب");
-
-    // 3. Discipline Sheet
-    const discRows: any[] = [["نام دانش‌آموز", "تاریخ", "مورد انضباطی", "امتیاز مثبت"]];
-    data.sessions.forEach(sess => {
-        sess.records.forEach(rec => {
-            const s = data.students.find(st => st.id === rec.studentId);
-            const issues = [];
-            if (rec.discipline.sleep) issues.push("خواب");
-            if (rec.discipline.badBehavior) issues.push("بی‌انضباطی");
-            if (rec.discipline.expelled) issues.push("اخراج");
-            
-            if (issues.length > 0 || rec.positivePoints > 0) {
-                discRows.push([
-                    s?.name || "نامشخص",
-                    formatJalaali(sess.date),
-                    issues.join(" - "),
-                    rec.positivePoints > 0 ? rec.positivePoints : ""
-                ]);
-            }
-        });
-    });
-    const wsDisc = XLSX.utils.aoa_to_sheet(discRows);
-    wsDisc['!views'] = [{ rightToLeft: true }];
-    XLSX.utils.book_append_sheet(wb, wsDisc, "موارد انضباطی");
-
-    const teacher = settings?.teacherName || "Teacher";
-    const year = settings?.currentAcademicYear || "Year";
-    const fileName = `Report_${data.name}_${teacher}_${year}.xlsx`;
-    
-    XLSX.writeFile(wb, fileName);
+    } catch (error) {
+        console.error("Excel Export Error", error);
+        alert("خطا در ایجاد فایل اکسل: " + error);
+    }
   };
 
   const compressImage = (file: File): Promise<string> => {
@@ -374,7 +397,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         img.src = e.target?.result as string;
         img.onload = () => {
           const canvas = document.createElement('canvas');
-          const MAX_SIZE = 400; // Limit resolution for profile picture
+          const MAX_SIZE = 400; 
           let width = img.width;
           let height = img.height;
           
@@ -395,10 +418,9 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
           const ctx = canvas.getContext('2d');
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            // Compress to JPEG with 0.6 quality
             resolve(canvas.toDataURL('image/jpeg', 0.6));
           } else {
-            resolve(img.src); // Fallback
+            resolve(img.src);
           }
         };
         img.onerror = reject;
@@ -428,7 +450,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       if (uploadStudentId) {
           handleImageUpload(e, uploadStudentId);
       }
-      e.target.value = ''; // Reset input
+      e.target.value = ''; 
   };
 
   const triggerProfileImagePicker = (e: React.MouseEvent, studentId: string) => {
@@ -445,8 +467,8 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   const handleNativeCamera = async (studentId: string) => {
     try {
       const image = await Camera.getPhoto({
-        quality: 60, // Reduced quality for compression
-        width: 400, // Reduce dimensions for compression
+        quality: 60,
+        width: 400,
         allowEditing: false,
         resultType: CameraResultType.DataUrl,
         source: CameraSource.Prompt,
@@ -493,7 +515,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   };
 
   const saveSession = (updatedSession: Session, shouldExit: boolean) => {
-      // Find if session exists
       const exists = data.sessions.find(s => s.id === updatedSession.id);
       let updatedSessions;
       
@@ -557,7 +578,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   const renderClassReportModal = () => {
     if (!showClassReport) return null;
 
-    // Calculate negative scores for top list
     const negativeScores = data.students.map(s => {
         let count = 0;
         let details: string[] = [];
@@ -575,7 +595,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto pt-10 pb-10">
             <div className="bg-white dark:bg-gray-800 w-full max-w-4xl rounded-3xl p-6 m-4 shadow-2xl relative">
-                {/* Fixed Header in Modal */}
                 <div className="flex justify-between items-center mb-6 sticky top-0 bg-white dark:bg-gray-800 z-10 pb-4 border-b border-gray-100 dark:border-gray-700">
                     <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
                         <Icons.Chart className="text-emerald-600" />
@@ -591,9 +610,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                     </div>
                 </div>
 
-                {/* Report Content */}
                 <div id="class-report-content" className="space-y-6 bg-white dark:bg-gray-800 p-4 rounded-xl">
-                    {/* Header Info */}
                     <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
                          <div>
                              <h2 className="text-lg font-bold text-gray-900 dark:text-white">{data.name}</h2>
@@ -605,7 +622,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                          </div>
                     </div>
 
-                    {/* Table */}
                     <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
                             <thead>
@@ -666,7 +682,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                         </table>
                     </div>
 
-                    {/* Top Negative Students */}
                     {negativeScores.length > 0 && (
                          <div className="mt-8">
                              <h4 className="font-bold text-red-600 dark:text-red-400 mb-3 border-b border-red-100 dark:border-red-900 pb-2">لیست انضباطی (بیشترین موارد منفی)</h4>
@@ -697,12 +712,10 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     const s = selectedStudentForReport;
     const perf = data.performance?.find(p => p.studentId === s.id);
     
-    // Stats Calculation
     let present = 0, absent = 0, late = 0, posScore = 0;
     const negCounts = { sleep: 0, bad: 0, expelled: 0 };
     const sessionHistory: {date: string, day: string, status: string, statusColor: string, desc: string}[] = [];
 
-    // Sort sessions by date desc
     const sortedSessions = [...data.sessions].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
     sortedSessions.forEach(sess => {
@@ -737,7 +750,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
 
     const negTotal = negCounts.sleep + negCounts.bad + negCounts.expelled;
 
-    // Chart Data
     let chartData = [];
     if (data.type === ClassType.MODULAR) {
         chartData = [1,2,3,4,5].map(i => ({
@@ -759,7 +771,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh]">
                 
-                {/* Fixed Modal Header */}
                 <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 rounded-t-3xl z-10">
                     <h3 className="text-lg font-black text-gray-900 dark:text-white">گزارش عملکرد</h3>
                     <div className="flex gap-2">
@@ -772,9 +783,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                     </div>
                 </div>
 
-                {/* Scrollable Body - This content is captured */}
                 <div className="overflow-y-auto p-4 md:p-6" id="individual-report-content">
-                    {/* Compact Header Profile */}
                     <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl border border-gray-200 dark:border-gray-600 mb-4">
                         {s.avatarUrl ? (
                              <img src={s.avatarUrl} className="w-16 h-16 rounded-full object-cover border-2 border-white dark:border-gray-500 shadow-sm" />
@@ -797,7 +806,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                         </div>
                     </div>
 
-                    {/* Stats Bar (Compact) */}
                     <div className="grid grid-cols-4 gap-2 mb-4">
                         <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-xl text-center border border-emerald-100 dark:border-emerald-900/30">
                             <div className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">حاضر</div>
@@ -817,7 +825,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                         </div>
                     </div>
 
-                    {/* Grades Chart (Compact Height) */}
                     <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 pb-0">
                          <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 px-1">روند نمرات</h4>
                          <div className="h-40 w-full" style={{ direction: 'ltr' }}>
@@ -834,7 +841,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                          </div>
                     </div>
 
-                    {/* Session History Table (Compact) */}
                     <div>
                         <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 px-1">تاریخچه جلسات</h4>
                         <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
@@ -963,13 +969,21 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
                                      <span className="text-sm mt-0.5">{formatJalaali(session.date).split('/')[2]}</span>
                                  </div>
                                  <div>
-                                     <p className="text-sm font-bold text-gray-900 dark:text-white">{formatJalaali(session.date)}</p>
-                                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                                        {session.records.filter(r => r.attendance === AttendanceStatus.PRESENT).length} حاضر . {session.records.filter(r => r.attendance === AttendanceStatus.ABSENT).length} غایب
-                                     </p>
+                                     <h3 className="font-bold text-gray-900 dark:text-white">{formatJalaali(session.date)}</h3>
+                                     <div className="flex gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                         <span>{session.records.filter(r => r.attendance === AttendanceStatus.PRESENT).length} حاضر</span>
+                                         <span>•</span>
+                                         <span className="text-red-500">{session.records.filter(r => r.attendance === AttendanceStatus.ABSENT).length} غایب</span>
+                                     </div>
                                  </div>
                              </div>
-                             <Icons.Back className="text-gray-300 group-hover:text-purple-500 rotate-180 transition-colors" size={20} />
+                             <div className="flex items-center gap-2">
+                                {session.lessonPlan && <Icons.File className="text-purple-400" size={16} />}
+                                <button onClick={(e) => deleteSession(e, session.id)} className="p-2 text-gray-300 hover:text-red-500">
+                                    <Icons.Delete size={18} />
+                                </button>
+                                <Icons.Back size={16} className="text-gray-300 rotate-180" />
+                             </div>
                         </div>
                     ))
                 )}
@@ -978,168 +992,212 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
 
         {/* GRADES TAB */}
         {currentTab === 'GRADES' && (
-             <div className="overflow-x-auto bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm">
-                 <table className="w-full text-sm text-left">
-                     <thead className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 uppercase">
-                         <tr>
-                             <th className="px-4 py-3 text-right">دانش‌آموز</th>
-                             {data.type === ClassType.MODULAR ? (
-                                 [1,2,3,4,5].map(i => <th key={i} className="px-4 py-3 text-center whitespace-nowrap">پودمان {i}</th>)
-                             ) : (
-                                 <>
-                                     <th className="px-4 py-3 text-center whitespace-nowrap">مستمر ۱</th>
-                                     <th className="px-4 py-3 text-center whitespace-nowrap">پایانی ۱</th>
-                                     <th className="px-4 py-3 text-center whitespace-nowrap">مستمر ۲</th>
-                                     <th className="px-4 py-3 text-center whitespace-nowrap">پایانی ۲</th>
-                                 </>
-                             )}
-                         </tr>
-                     </thead>
-                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                         {data.students.map(student => {
-                             const perf = data.performance?.find(p => p.studentId === student.id);
-                             return (
-                                 <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white text-right whitespace-nowrap sticky right-0 bg-white dark:bg-gray-800 z-10">{student.name}</td>
-                                     {data.type === ClassType.MODULAR ? (
-                                         [1,2,3,4,5].map(i => (
-                                             <td key={i} className="px-2 py-2">
-                                                 <input 
-                                                     type="number" 
-                                                     className="w-12 text-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 outline-none transition-all dark:text-white"
-                                                     value={perf?.gradesModular.find(g => g.moduleId === i)?.score || ''}
-                                                     onChange={(e) => updateModularGrade(student.id, i as any, parseFloat(e.target.value))}
-                                                 />
-                                             </td>
-                                         ))
-                                     ) : (
-                                         <>
-                                            <td className="px-2 py-2"><input type="number" className="w-12 text-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 focus:border-emerald-500 outline-none dark:text-white" value={perf?.gradesTerm.find(g => g.termId === 1)?.continuous || ''} onChange={(e) => updateTermGrade(student.id, 1, 'continuous', parseFloat(e.target.value))} /></td>
-                                            <td className="px-2 py-2"><input type="number" className="w-12 text-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 focus:border-emerald-500 outline-none dark:text-white" value={perf?.gradesTerm.find(g => g.termId === 1)?.final || ''} onChange={(e) => updateTermGrade(student.id, 1, 'final', parseFloat(e.target.value))} /></td>
-                                            <td className="px-2 py-2"><input type="number" className="w-12 text-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 focus:border-emerald-500 outline-none dark:text-white" value={perf?.gradesTerm.find(g => g.termId === 2)?.continuous || ''} onChange={(e) => updateTermGrade(student.id, 2, 'continuous', parseFloat(e.target.value))} /></td>
-                                            <td className="px-2 py-2"><input type="number" className="w-12 text-center bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-600 rounded-lg p-1.5 focus:border-emerald-500 outline-none dark:text-white" value={perf?.gradesTerm.find(g => g.termId === 2)?.final || ''} onChange={(e) => updateTermGrade(student.id, 2, 'final', parseFloat(e.target.value))} /></td>
-                                         </>
-                                     )}
-                                 </tr>
-                             )
-                         })}
-                     </tbody>
-                 </table>
+             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                        <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-b dark:border-gray-600">
+                            <tr>
+                                <th className="p-3 text-right whitespace-nowrap sticky right-0 bg-gray-50 dark:bg-gray-700 z-10 border-l dark:border-gray-600">دانش‌آموز</th>
+                                {data.type === ClassType.MODULAR ? (
+                                    [1,2,3,4,5].map(i => <th key={i} className="p-3 text-center whitespace-nowrap">پودمان {i}</th>)
+                                ) : (
+                                    <>
+                                        <th className="p-3 text-center whitespace-nowrap">مستمر ۱</th>
+                                        <th className="p-3 text-center whitespace-nowrap">پایانی ۱</th>
+                                        <th className="p-3 text-center whitespace-nowrap">مستمر ۲</th>
+                                        <th className="p-3 text-center whitespace-nowrap">پایانی ۲</th>
+                                    </>
+                                )}
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                            {data.students.map(student => {
+                                const perf = data.performance?.find(p => p.studentId === student.id);
+                                return (
+                                    <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                                        <td className="p-3 font-bold text-gray-900 dark:text-white sticky right-0 bg-white dark:bg-gray-800 border-l dark:border-gray-700 z-10">{student.name}</td>
+                                        {data.type === ClassType.MODULAR ? (
+                                            [1,2,3,4,5].map(i => {
+                                                const score = perf?.gradesModular.find(g => g.moduleId === i)?.score || '';
+                                                return (
+                                                    <td key={i} className="p-1">
+                                                        <input 
+                                                            type="number" 
+                                                            className="w-full text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 focus:bg-emerald-50 dark:focus:bg-emerald-900/20 focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
+                                                            placeholder="-"
+                                                            value={score}
+                                                            onChange={e => updateModularGrade(student.id, i as any, parseFloat(e.target.value))}
+                                                        />
+                                                    </td>
+                                                );
+                                            })
+                                        ) : (
+                                            <>
+                                                {[1, 2].map(term => (
+                                                    <React.Fragment key={term}>
+                                                        <td className="p-1">
+                                                            <input type="number" className="w-full text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 focus:bg-emerald-50 focus:ring-1 outline-none" placeholder="-"
+                                                                value={perf?.gradesTerm.find(g => g.termId === term)?.continuous || ''}
+                                                                onChange={e => updateTermGrade(student.id, term as any, 'continuous', parseFloat(e.target.value))}
+                                                            />
+                                                        </td>
+                                                        <td className="p-1">
+                                                            <input type="number" className="w-full text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 focus:bg-emerald-50 focus:ring-1 outline-none border-l dark:border-gray-700" placeholder="-"
+                                                                value={perf?.gradesTerm.find(g => g.termId === term)?.final || ''}
+                                                                onChange={e => updateTermGrade(student.id, term as any, 'final', parseFloat(e.target.value))}
+                                                            />
+                                                        </td>
+                                                    </React.Fragment>
+                                                ))}
+                                            </>
+                                        )}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
+                </div>
              </div>
         )}
 
-        {/* REPORTS & CHARTS TAB */}
+        {/* CHARTS TAB */}
         {currentTab === 'CHARTS' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div onClick={() => setShowClassReport(true)} className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white p-6 rounded-3xl shadow-lg shadow-emerald-200 dark:shadow-none flex flex-col items-center justify-center gap-3 cursor-pointer hover:scale-[1.02] transition-transform">
-                    <div className="bg-white/20 p-4 rounded-2xl"><Icons.Chart size={32} /></div>
-                    <span className="font-bold text-lg">گزارش وضعیت کلاس</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div onClick={() => setShowClassReport(true)} className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none cursor-pointer hover:scale-[1.02] transition-transform">
+                    <Icons.Chart size={40} className="mb-4 opacity-80" />
+                    <h3 className="text-xl font-black mb-1">گزارش جامع کلاس</h3>
+                    <p className="text-emerald-100 text-sm opacity-90">مشاهده لیست نمرات، غایبین و موارد انضباطی کل کلاس</p>
                 </div>
 
-                <div onClick={handleFullExport} className="bg-white dark:bg-gray-800 p-6 rounded-3xl shadow-sm border border-gray-100 dark:border-gray-700 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                     <div className="bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 p-4 rounded-2xl"><Icons.Download size={32} /></div>
-                     <span className="font-bold text-gray-800 dark:text-white">خروجی اکسل کامل</span>
-                </div>
-
-                <div onClick={() => handleDeleteClass()} className="bg-red-50 dark:bg-red-900/10 p-6 rounded-3xl border border-red-100 dark:border-red-900/30 flex flex-col items-center justify-center gap-3 cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors sm:col-span-2">
-                     <Icons.Delete size={24} className="text-red-500" />
-                     <span className="font-bold text-red-600 dark:text-red-400 text-sm">حذف کامل کلاس</span>
+                <div onClick={handleFullExport} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-500 transition-colors group">
+                    <Icons.Download size={40} className="mb-4 text-gray-400 group-hover:text-emerald-500 transition-colors" />
+                    <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">خروجی اکسل</h3>
+                    <p className="text-gray-500 dark:text-gray-400 text-sm">دریافت فایل Excel شامل تمام اطلاعات کلاس</p>
                 </div>
             </div>
         )}
       </div>
 
-      {/* Floating Action Button */}
-      {currentTab === 'SESSIONS' && (
-           <button onClick={openSessionModal} className="fixed bottom-6 left-6 bg-emerald-600 text-white p-4 rounded-2xl shadow-xl shadow-emerald-200 dark:shadow-none hover:scale-110 transition-transform z-20 flex items-center gap-2">
-               <Icons.Plus className="w-6 h-6" /> <span className="font-bold text-sm hidden md:inline">جلسه جدید</span>
-           </button>
-      )}
-      {currentTab === 'STUDENTS' && (
-           <button onClick={() => setShowAddStudent(true)} className="fixed bottom-6 left-6 bg-emerald-600 text-white p-4 rounded-2xl shadow-xl shadow-emerald-200 dark:shadow-none hover:scale-110 transition-transform z-20 flex items-center gap-2">
-               <Icons.AddUser className="w-6 h-6" /> <span className="font-bold text-sm hidden md:inline">دانش‌آموز جدید</span>
-           </button>
+      {/* Floating Action Button (Only for Sessions and Students) */}
+      {(currentTab === 'SESSIONS' || currentTab === 'STUDENTS') && (
+          <button 
+            onClick={currentTab === 'SESSIONS' ? openSessionModal : () => setShowAddStudent(true)}
+            className="fixed bottom-6 left-6 bg-emerald-600 text-white p-4 rounded-2xl shadow-xl hover:scale-105 transition-transform z-20 flex items-center gap-2"
+          >
+            <Icons.Plus size={24} />
+            <span className="font-bold text-sm">{currentTab === 'SESSIONS' ? 'جلسه جدید' : 'دانش‌آموز جدید'}</span>
+          </button>
       )}
 
       {/* Modals */}
       {showAddStudent && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
                   <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">افزودن دانش‌آموز</h3>
-                  <input autoFocus type="text" placeholder="نام و نام خانوادگی" value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl mb-3 focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white" />
-                  <input type="tel" placeholder="شماره تماس (اختیاری)" value={newStudentPhone} onChange={e=>setNewStudentPhone(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl mb-4 focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white" />
-                  <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl mb-4 text-center">
-                       <label className="text-xs font-bold text-blue-600 dark:text-blue-400 block mb-2">یا وارد کردن از اکسل</label>
-                       <input type="file" accept=".xlsx,.xls" onChange={handleExcelImport} className="text-xs text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-blue-100 file:text-blue-700 hover:file:bg-blue-200"/>
+                  
+                  <div className="space-y-3 mb-6">
+                      <input 
+                        type="text" 
+                        placeholder="نام و نام خانوادگی" 
+                        value={newStudentName} 
+                        onChange={e => setNewStudentName(e.target.value)} 
+                        className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:border-emerald-500 dark:text-white"
+                        autoFocus
+                      />
+                      <input 
+                        type="tel" 
+                        placeholder="شماره تماس (اختیاری)" 
+                        value={newStudentPhone} 
+                        onChange={e => setNewStudentPhone(e.target.value)} 
+                        className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:border-emerald-500 dark:text-white"
+                      />
                   </div>
-                  <div className="flex gap-2">
-                      <button onClick={()=>setShowAddStudent(false)} className="flex-1 py-3 text-gray-500 dark:text-gray-400 font-bold">انصراف</button>
+
+                  {/* Batch Import Button */}
+                  <div className="mb-4 relative border-t pt-4">
+                      <p className="text-xs text-center text-gray-400 mb-2">یا وارد کردن لیست از اکسل</p>
+                      <input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} className="absolute inset-0 opacity-0 cursor-pointer" />
+                      <button className="w-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-2 rounded-xl text-sm font-bold">انتخاب فایل اکسل</button>
+                  </div>
+
+                  <div className="flex gap-3">
+                      <button onClick={() => setShowAddStudent(false)} className="flex-1 py-3 text-gray-500 font-bold">لغو</button>
                       <button onClick={addStudent} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">افزودن</button>
                   </div>
               </div>
           </div>
       )}
-
+      
+      {/* Edit Student Modal */}
       {editingStudent && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
                   <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">ویرایش دانش‌آموز</h3>
-                  <input autoFocus type="text" placeholder="نام" value={newStudentName} onChange={e=>setNewStudentName(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl mb-3 focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white" />
-                  <input type="tel" placeholder="شماره تماس" value={newStudentPhone} onChange={e=>setNewStudentPhone(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl mb-4 focus:ring-2 focus:ring-emerald-500 outline-none dark:text-white" />
-                  <div className="flex gap-2">
-                      <button onClick={()=>{setEditingStudent(null); setNewStudentName('');}} className="flex-1 py-3 text-gray-500 dark:text-gray-400 font-bold">انصراف</button>
-                      <button onClick={saveEditedStudent} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">ذخیره</button>
+                  <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} className="w-full p-3 mb-3 rounded-xl bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 dark:text-white"/>
+                  <input type="tel" value={newStudentPhone} onChange={e => setNewStudentPhone(e.target.value)} className="w-full p-3 mb-6 rounded-xl bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 dark:text-white"/>
+                  <div className="flex gap-3">
+                      <button onClick={() => setEditingStudent(null)} className="flex-1 text-gray-500 font-bold">لغو</button>
+                      <button onClick={saveEditedStudent} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">ذخیره</button>
                   </div>
               </div>
           </div>
       )}
 
+      {/* New Session Modal */}
       {showNewSessionModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
               <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">جلسه جدید</h3>
-                  <div className="space-y-3 mb-6">
+                  <div className="text-center mb-6">
+                      <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-purple-600 dark:text-purple-400">
+                          <Icons.Calendar size={32} />
+                      </div>
+                      <h3 className="text-xl font-black text-gray-900 dark:text-white">جلسه جدید</h3>
+                  </div>
+                  
+                  <div className="space-y-4 mb-6">
                       <div>
-                          <label className="text-xs text-gray-500 dark:text-gray-400 font-bold block mb-1">تاریخ</label>
-                          <input type="text" value={newSessionDate} onChange={e=>setNewSessionDate(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl text-center font-bold text-gray-900 dark:text-white" dir="ltr"/>
+                          <label className="text-xs font-bold text-gray-500 mb-1 block px-1">تاریخ جلسه</label>
+                          <input type="text" value={newSessionDate} onChange={e => setNewSessionDate(e.target.value)} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center font-bold text-lg dark:text-white" dir="ltr"/>
                       </div>
                       <div>
-                          <label className="text-xs text-gray-500 dark:text-gray-400 font-bold block mb-1">روز</label>
-                          <input type="text" value={newSessionDay} onChange={e=>setNewSessionDay(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl text-center font-bold text-gray-900 dark:text-white"/>
+                          <label className="text-xs font-bold text-gray-500 mb-1 block px-1">روز هفته</label>
+                          <input type="text" value={newSessionDay} onChange={e => setNewSessionDay(e.target.value)} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center font-bold dark:text-white"/>
                       </div>
                   </div>
-                  <div className="flex gap-2">
-                      <button onClick={()=>setShowNewSessionModal(false)} className="flex-1 py-3 text-gray-500 dark:text-gray-400 font-bold">انصراف</button>
+
+                  <div className="flex gap-3">
+                      <button onClick={() => setShowNewSessionModal(false)} className="flex-1 py-3 text-gray-500 font-bold">لغو</button>
                       <button onClick={handleConfirmCreateSession} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">ایجاد</button>
                   </div>
               </div>
           </div>
       )}
 
+      {/* Edit Class Info Modal */}
       {showEditClassInfo && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-              <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+               <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
                   <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">ویرایش اطلاعات کلاس</h3>
-                  <input type="text" placeholder="نام کلاس" value={editClassName} onChange={e=>setEditClassName(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl mb-3 outline-none dark:text-white" />
-                  <input type="text" placeholder="نام درس" value={editBookName} onChange={e=>setEditBookName(e.target.value)} className="w-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 p-3 rounded-xl mb-4 outline-none dark:text-white" />
-                  <div className="flex gap-2">
-                      <button onClick={()=>setShowEditClassInfo(false)} className="flex-1 py-3 text-gray-500 dark:text-gray-400 font-bold">انصراف</button>
-                      <button onClick={handleEditClassInfo} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">ذخیره</button>
-                  </div>
-              </div>
+                  <input type="text" placeholder="نام کلاس" value={editClassName} onChange={e => setEditClassName(e.target.value)} className="w-full mb-3 p-3 rounded-xl border dark:bg-gray-700 dark:border-gray-600 dark:text-white"/>
+                  <input type="text" placeholder="نام درس" value={editBookName} onChange={e => setEditBookName(e.target.value)} className="w-full mb-6 p-3 rounded-xl border dark:bg-gray-700 dark:border-gray-600 dark:text-white"/>
+                  
+                  <button onClick={handleEditClassInfo} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mb-3">ذخیره تغییرات</button>
+                  <button onClick={handleDeleteClass} className="w-full border border-red-200 text-red-500 py-3 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20">حذف کلاس</button>
+                  <button onClick={() => setShowEditClassInfo(false)} className="w-full mt-2 text-gray-400 text-sm">بازگشت</button>
+               </div>
           </div>
       )}
 
       {renderClassReportModal()}
       {renderIndividualReportModal()}
       
-      {/* Hidden File Input for Web Image Upload */}
+      {/* Hidden File Input for Image Upload */}
       <input 
         type="file" 
         ref={fileInputRef} 
+        onChange={handleFileInputChange} 
+        accept="image/*" 
         className="hidden" 
-        accept="image/*"
-        onChange={handleFileInputChange}
       />
     </div>
   );
