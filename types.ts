@@ -37,6 +37,7 @@ export interface DailyLessonPlan {
 export interface Session {
   id: string;
   classId: string;
+  moduleId?: number; // 1 | 2 | 3 | 4 | 5
   date: string; // ISO string
   dayOfWeek: string;
   records: SessionRecord[];
@@ -59,6 +60,9 @@ export interface Student {
 export interface GradeModular {
   moduleId: 1 | 2 | 3 | 4 | 5;
   score: number;
+  examScore?: number;
+  classroomPositive?: number;
+  classroomNegative?: number;
 }
 
 export interface GradeTerm {

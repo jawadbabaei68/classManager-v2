@@ -5,13 +5,17 @@ import { updateClass, deleteClass, getSettings } from '../services/storageServic
 import { formatJalaali, parseJalaaliToIso } from '../services/dateService';
 import { Icons } from '../components/Icons';
 import { SessionScreen } from './SessionScreen';
-import { ResponsiveContainer, BarChart, Bar, XAxis, CartesianGrid, LabelList, YAxis } from 'recharts';
 import * as XLSX from 'xlsx';
 import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
-import html2canvas from 'html2canvas';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+
+// Sub Components
+import { StudentListTab, SessionListTab, GradesTab, ChartsTab } from '../components/class/ClassTabs';
+import { AddStudentModal, EditStudentModal, NewSessionModal, EditClassInfoModal } from '../components/class/ClassModals';
+import { StudentReportModal, FullClassReportModal } from '../components/reports/ReportViewers';
+import { shareElementAsImage } from '../utils/exportUtils';
 
 interface ClassScreenProps {
   classroom: Classroom;
@@ -38,7 +42,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   const [showEditClassInfo, setShowEditClassInfo] = useState(false);
   
   // Individual Report State
-  const [showStudentSelectModal, setShowStudentSelectModal] = useState(false);
   const [showIndividualReport, setShowIndividualReport] = useState(false);
   const [selectedStudentForReport, setSelectedStudentForReport] = useState<Student | null>(null);
   
@@ -49,6 +52,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [newSessionDate, setNewSessionDate] = useState('');
   const [newSessionDay, setNewSessionDay] = useState('');
+  const [newSessionModule, setNewSessionModule] = useState<number>(1);
 
   // Edit Class Form State
   const [editClassName, setEditClassName] = useState(data.name);
@@ -177,110 +181,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     e.target.value = '';
   };
 
-  // --- Share as Image Logic ---
-  const shareReportAsImage = async (elementId: string, title: string) => {
-    const element = document.getElementById(elementId);
-    if (!element) return;
-
-    const EXPORT_WIDTH = 800; 
-    const container = document.createElement('div');
-    container.style.position = 'fixed';
-    container.style.top = '0'; 
-    container.style.left = '0'; 
-    container.style.zIndex = '-9999';
-    container.style.opacity = '0';
-    container.style.pointerEvents = 'none';
-    document.body.appendChild(container);
-
-    const clone = element.cloneNode(true) as HTMLElement;
-    
-    clone.style.width = `${EXPORT_WIDTH}px`;
-    clone.style.minWidth = `${EXPORT_WIDTH}px`;
-    clone.style.maxWidth = `${EXPORT_WIDTH}px`;
-    clone.style.height = 'auto'; 
-    clone.style.maxHeight = 'none';
-    clone.style.overflow = 'visible';
-    clone.style.position = 'relative';
-    clone.style.margin = '0';
-    clone.style.padding = '20px';
-    clone.style.borderRadius = '0';
-    clone.style.boxShadow = 'none';
-    clone.style.transform = 'none';
-    
-    const isDark = document.documentElement.classList.contains('dark');
-    if (isDark) {
-        clone.classList.add('dark');
-        clone.style.backgroundColor = '#111827';
-        clone.style.color = '#f3f4f6';
-    } else {
-        clone.classList.remove('dark');
-        clone.style.backgroundColor = '#ffffff';
-        clone.style.color = '#111827';
-    }
-
-    const footer = document.createElement('div');
-    footer.innerText = 'جواد بابائی | mrhonaramoz.ir';
-    footer.style.textAlign = 'center';
-    footer.style.marginTop = '24px';
-    footer.style.paddingTop = '12px';
-    footer.style.borderTop = isDark ? '1px solid #374151' : '1px solid #e5e7eb';
-    footer.style.fontSize = '12px';
-    footer.style.fontWeight = '700';
-    footer.style.color = isDark ? '#9ca3af' : '#6b7280';
-    footer.style.fontFamily = 'Vazirmatn, sans-serif';
-    clone.appendChild(footer);
-
-    container.appendChild(clone);
-
-    await new Promise(resolve => setTimeout(resolve, 300));
-
-    try {
-      const canvas = await html2canvas(clone, {
-        scale: 2, 
-        useCORS: true,
-        backgroundColor: isDark ? '#111827' : '#ffffff',
-        width: EXPORT_WIDTH,
-        windowWidth: EXPORT_WIDTH, 
-        scrollX: 0,
-        scrollY: 0,
-        x: 0,
-        y: 0,
-        onclone: (doc) => {
-            const el = doc.getElementById(elementId);
-            if (el) {
-                el.style.color = isDark ? '#f3f4f6' : '#111827';
-            }
-        }
-      });
-
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-
-      if (Capacitor.isNativePlatform()) {
-        const fileName = `${title}_${Date.now()}.jpg`;
-        const savedFile = await Filesystem.writeFile({
-          path: fileName,
-          data: dataUrl.split(',')[1],
-          directory: Directory.Cache
-        });
-
-        await Share.share({
-          title: title,
-          files: [savedFile.uri],
-        });
-      } else {
-        const link = document.createElement('a');
-        link.download = `${title}.jpg`;
-        link.href = dataUrl;
-        link.click();
-      }
-    } catch (error) {
-      console.error('Sharing failed', error);
-      alert('خطا در تولید تصویر گزارش');
-    } finally {
-      document.body.removeChild(container);
-    }
-  };
-
   // --- Full Excel Export Logic ---
   const handleFullExport = async () => {
     try {
@@ -358,10 +258,9 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         wsDisc['!views'] = [{ rightToLeft: true }];
         XLSX.utils.book_append_sheet(wb, wsDisc, "موارد انضباطی");
 
-        const teacher = settings?.teacherName || "Teacher";
-        const year = settings?.currentAcademicYear || "Year";
-        const safeName = data.name.replace(/[^a-z0-9]/gi, '_');
-        const fileName = `Report_${safeName}_${year}.xlsx`;
+        const currentJalaaliDate = formatJalaali(new Date().toISOString()).replace(/\//g, '-');
+        const safeName = data.name.replace(/[\\/:*?"<>|]/g, '_').replace(/\s+/g, '_');
+        const fileName = `${safeName}_${currentJalaaliDate}.xlsx`;
         
         if (Capacitor.isNativePlatform()) {
              const wbout = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
@@ -493,6 +392,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       
       setNewSessionDate(todayStr);
       setNewSessionDay(dayName);
+      setNewSessionModule(1);
       setShowNewSessionModal(true);
   };
 
@@ -506,6 +406,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     const newSession: Session = {
       id: Date.now().toString(),
       classId: data.id,
+      moduleId: newSessionModule,
       date: isoDate,
       dayOfWeek: newSessionDay,
       records: []
@@ -533,14 +434,53 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       }
   };
 
-  const updateModularGrade = (studentId: string, moduleId: 1|2|3|4|5, score: number) => {
+  const updateModularGrade = (studentId: string, moduleId: 1|2|3|4|5, field: 'examScore' | 'classroomPositive' | 'classroomNegative', value: number) => {
       const existingPerf = data.performance?.find(p => p.studentId === studentId);
       const perfList = data.performance?.filter(p => p.studentId !== studentId) || [];
       
       const newGrades = existingPerf ? [...existingPerf.gradesModular] : [];
-      const idx = newGrades.findIndex(g => g.moduleId === moduleId);
-      if (idx >= 0) newGrades[idx].score = score;
-      else newGrades.push({ moduleId, score });
+      let idx = newGrades.findIndex(g => g.moduleId === moduleId);
+      
+      if (idx === -1) {
+          newGrades.push({ moduleId, score: 0 });
+          idx = newGrades.length - 1;
+      }
+
+      // Automatically calculate positive and negative points from session records
+      let calculatedPos = 0;
+      let calculatedNeg = 0;
+      data.sessions.forEach(sess => {
+          // Default to module 1 if undefined to handle legacy data
+          const sModule = sess.moduleId || 1; 
+          
+          if (sModule === moduleId) {
+              const rec = sess.records.find(r => r.studentId === studentId);
+              if (rec) {
+                  calculatedPos += rec.positivePoints || 0;
+                  if (rec.discipline.sleep) calculatedNeg += 0.5;
+                  if (rec.discipline.badBehavior) calculatedNeg += 0.5;
+                  if (rec.discipline.expelled) calculatedNeg += 1;
+              }
+          }
+      });
+
+      const currentGrade = newGrades[idx];
+      const updatedGrade = { ...currentGrade };
+
+      // Update exam score if that was the changed field
+      if (field === 'examScore') {
+          updatedGrade.examScore = isNaN(value) ? undefined : value;
+      }
+
+      // Always update classroom points from calculation
+      updatedGrade.classroomPositive = calculatedPos;
+      updatedGrade.classroomNegative = calculatedNeg;
+
+      // Calculate Final Score: Exam + Positive - Negative
+      const exam = updatedGrade.examScore || 0;
+      updatedGrade.score = exam + calculatedPos - calculatedNeg;
+
+      newGrades[idx] = updatedGrade;
 
       const newPerf: StudentPerformance = {
           studentId,
@@ -571,310 +511,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       };
 
       handleUpdate({ ...data, performance: [...perfList, newPerf] });
-  };
-
-  // --- Render Functions ---
-
-  const renderClassReportModal = () => {
-    if (!showClassReport) return null;
-
-    const negativeScores = data.students.map(s => {
-        let count = 0;
-        let details: string[] = [];
-        data.sessions.forEach(sess => {
-            const r = sess.records.find(rec => rec.studentId === s.id);
-            if (r) {
-                if (r.discipline.sleep) { count++; details.push('خواب'); }
-                if (r.discipline.badBehavior) { count++; details.push('بی‌انضباطی'); }
-                if (r.discipline.expelled) { count++; details.push('اخراج'); }
-            }
-        });
-        return { student: s, count, details };
-    }).sort((a, b) => b.count - a.count).slice(0, 5).filter(x => x.count > 0);
-
-    return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-start justify-center overflow-y-auto pt-10 pb-10">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-4xl rounded-3xl p-6 m-4 shadow-2xl relative">
-                <div className="flex justify-between items-center mb-6 sticky top-0 bg-white dark:bg-gray-800 z-10 pb-4 border-b border-gray-100 dark:border-gray-700">
-                    <h3 className="text-xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-                        <Icons.Chart className="text-emerald-600" />
-                        گزارش جامع کلاس
-                    </h3>
-                    <div className="flex gap-2">
-                        <button onClick={() => shareReportAsImage('class-report-content', `ClassReport_${data.name}`)} className="flex items-center gap-2 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 px-4 py-2 rounded-xl font-bold hover:bg-blue-100 transition-colors">
-                            <Icons.Camera size={18} /> <span className="hidden sm:inline">ذخیره تصویر</span>
-                        </button>
-                        <button onClick={() => setShowClassReport(false)} className="text-gray-400 hover:text-red-500 p-2">
-                            <Icons.XCircle size={24} />
-                        </button>
-                    </div>
-                </div>
-
-                <div id="class-report-content" className="space-y-6 bg-white dark:bg-gray-800 p-4 rounded-xl">
-                    <div className="flex justify-between items-center bg-gray-50 dark:bg-gray-700 p-4 rounded-xl border border-gray-100 dark:border-gray-600">
-                         <div>
-                             <h2 className="text-lg font-bold text-gray-900 dark:text-white">{data.name}</h2>
-                             <p className="text-sm text-gray-500 dark:text-gray-400">{data.bookName} | {data.academicYear}</p>
-                         </div>
-                         <div className="text-left">
-                             <p className="text-xs text-gray-500 dark:text-gray-400">تعداد دانش‌آموز: {data.students.length}</p>
-                             <p className="text-xs text-gray-500 dark:text-gray-400">تعداد جلسات: {data.sessions.length}</p>
-                         </div>
-                    </div>
-
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="bg-emerald-600 text-white text-xs">
-                                    <th className="p-3 rounded-tr-xl">#</th>
-                                    <th className="p-3 text-right">نام دانش‌آموز</th>
-                                    <th className="p-3">غایب</th>
-                                    <th className="p-3">تاخیر</th>
-                                    <th className="p-3">نمره مثبت</th>
-                                    <th className="p-3">نمره منفی</th>
-                                    {data.type === ClassType.MODULAR && [1,2,3,4,5].map(i => (
-                                        <th key={i} className="p-3 bg-emerald-700">پ {i}</th>
-                                    ))}
-                                    <th className="p-3 rounded-tl-xl">وضعیت</th>
-                                </tr>
-                            </thead>
-                            <tbody className="text-sm text-gray-900 dark:text-gray-100">
-                                {data.students.map((s, idx) => {
-                                    let absent = 0;
-                                    let late = 0;
-                                    let posScore = 0;
-                                    let negScore = 0;
-
-                                    data.sessions.forEach(sess => {
-                                        const r = sess.records.find(rec => rec.studentId === s.id);
-                                        if (r) {
-                                            if (r.attendance === AttendanceStatus.ABSENT) absent++;
-                                            if (r.attendance === AttendanceStatus.LATE) late++;
-                                            posScore += r.positivePoints;
-                                            if (r.discipline.sleep) negScore++;
-                                            if (r.discipline.badBehavior) negScore++;
-                                            if (r.discipline.expelled) negScore++;
-                                        }
-                                    });
-
-                                    const perf = data.performance?.find(p => p.studentId === s.id);
-
-                                    return (
-                                        <tr key={s.id} className="border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                            <td className="p-3 text-center">{idx + 1}</td>
-                                            <td className="p-3 font-bold">{s.name}</td>
-                                            <td className="p-3 text-center text-red-500">{absent || '-'}</td>
-                                            <td className="p-3 text-center text-amber-500">{late || '-'}</td>
-                                            <td className="p-3 text-center text-emerald-600">{posScore || '-'}</td>
-                                            <td className="p-3 text-center text-red-600">{negScore || '-'}</td>
-                                            {data.type === ClassType.MODULAR && [1,2,3,4,5].map(i => (
-                                                <td key={i} className="p-3 text-center text-gray-600 dark:text-gray-300 border-l border-gray-100 dark:border-gray-700">
-                                                    {perf?.gradesModular.find(g => g.moduleId === i)?.score || '-'}
-                                                </td>
-                                            ))}
-                                            <td className="p-3 text-center">
-                                                {absent > 3 ? <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-xs">هشدار حذف</span> : <span className="text-emerald-500 text-xs">نرمال</span>}
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {negativeScores.length > 0 && (
-                         <div className="mt-8">
-                             <h4 className="font-bold text-red-600 dark:text-red-400 mb-3 border-b border-red-100 dark:border-red-900 pb-2">لیست انضباطی (بیشترین موارد منفی)</h4>
-                             <div className="bg-red-50 dark:bg-red-900/10 rounded-xl p-4 border border-red-100 dark:border-red-900/30">
-                                 {negativeScores.map((item, i) => (
-                                     <div key={i} className="flex justify-between items-center py-2 border-b border-red-100 dark:border-red-900/30 last:border-0 text-sm">
-                                         <div className="flex items-center gap-2">
-                                             <span className="w-5 h-5 bg-red-200 dark:bg-red-800 text-red-800 dark:text-red-100 rounded-full flex items-center justify-center text-xs font-bold">{i+1}</span>
-                                             <span className="font-bold text-gray-800 dark:text-gray-200">{item.student.name}</span>
-                                         </div>
-                                         <div className="text-red-600 dark:text-red-300 text-xs">
-                                             {item.count} مورد: {item.details.join('، ')}
-                                         </div>
-                                     </div>
-                                 ))}
-                             </div>
-                         </div>
-                    )}
-                </div>
-            </div>
-        </div>
-    );
-  };
-
-  const renderIndividualReportModal = () => {
-    if (!showIndividualReport || !selectedStudentForReport) return null;
-
-    const s = selectedStudentForReport;
-    const perf = data.performance?.find(p => p.studentId === s.id);
-    
-    let present = 0, absent = 0, late = 0, posScore = 0;
-    const negCounts = { sleep: 0, bad: 0, expelled: 0 };
-    const sessionHistory: {date: string, day: string, status: string, statusColor: string, desc: string}[] = [];
-
-    const sortedSessions = [...data.sessions].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-    sortedSessions.forEach(sess => {
-        const r = sess.records.find(rec => rec.studentId === s.id);
-        if (r) {
-            let status = 'نامشخص', statusColor = 'text-gray-500';
-            if (r.attendance === AttendanceStatus.PRESENT) { present++; status = 'حاضر'; statusColor = 'text-emerald-600'; }
-            if (r.attendance === AttendanceStatus.ABSENT) { absent++; status = 'غایب'; statusColor = 'text-red-600'; }
-            if (r.attendance === AttendanceStatus.LATE) { late++; status = 'تاخیر'; statusColor = 'text-amber-600'; }
-            
-            posScore += r.positivePoints;
-            if (r.discipline.sleep) negCounts.sleep++;
-            if (r.discipline.badBehavior) negCounts.bad++;
-            if (r.discipline.expelled) negCounts.expelled++;
-
-            const descParts = [];
-            if (r.discipline.sleep) descParts.push('خواب');
-            if (r.discipline.badBehavior) descParts.push('بی‌انضباطی');
-            if (r.discipline.expelled) descParts.push('اخراج');
-            if (r.positivePoints > 0) descParts.push(`+${r.positivePoints} امتیاز`);
-            if (r.note) descParts.push(r.note);
-
-            sessionHistory.push({
-                date: formatJalaali(sess.date),
-                day: sess.dayOfWeek,
-                status,
-                statusColor,
-                desc: descParts.join(' - ')
-            });
-        }
-    });
-
-    const negTotal = negCounts.sleep + negCounts.bad + negCounts.expelled;
-
-    let chartData = [];
-    if (data.type === ClassType.MODULAR) {
-        chartData = [1,2,3,4,5].map(i => ({
-            name: `پودمان ${i}`,
-            score: perf?.gradesModular.find(g => g.moduleId === i)?.score || 0
-        }));
-    } else {
-        const t1 = perf?.gradesTerm.find(g => g.termId === 1);
-        const t2 = perf?.gradesTerm.find(g => g.termId === 2);
-        chartData = [
-            { name: 'مستمر ۱', score: t1?.continuous || 0 },
-            { name: 'پایانی ۱', score: t1?.final || 0 },
-            { name: 'مستمر ۲', score: t2?.continuous || 0 },
-            { name: 'پایانی ۲', score: t2?.final || 0 },
-        ];
-    }
-
-    return (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-gray-800 w-full max-w-lg rounded-3xl shadow-2xl flex flex-col max-h-[90vh]">
-                
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center bg-white dark:bg-gray-800 rounded-t-3xl z-10">
-                    <h3 className="text-lg font-black text-gray-900 dark:text-white">گزارش عملکرد</h3>
-                    <div className="flex gap-2">
-                         <button onClick={() => shareReportAsImage('individual-report-content', `Report_${s.name}`)} className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 p-2 rounded-xl" title="ذخیره تصویر">
-                             <Icons.Camera size={20} />
-                         </button>
-                         <button onClick={() => setShowIndividualReport(false)} className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 p-2 rounded-xl">
-                             <Icons.XCircle size={20} />
-                         </button>
-                    </div>
-                </div>
-
-                <div className="overflow-y-auto p-4 md:p-6" id="individual-report-content">
-                    <div className="flex items-center gap-4 bg-gray-50 dark:bg-gray-700 p-4 rounded-2xl border border-gray-200 dark:border-gray-600 mb-4">
-                        {s.avatarUrl ? (
-                             <img src={s.avatarUrl} className="w-16 h-16 rounded-full object-cover border-2 border-white dark:border-gray-500 shadow-sm" />
-                        ) : (
-                             <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-2xl">
-                                 {s.name.charAt(0)}
-                             </div>
-                        )}
-                        <div className="flex-1">
-                             <div className="flex justify-between items-start">
-                                 <h2 className="text-xl font-black text-gray-900 dark:text-white mb-1">{s.name}</h2>
-                                 <span className="text-[10px] bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300 px-2 py-1 rounded-full">
-                                     {new Date().toLocaleDateString('fa-IR')}
-                                 </span>
-                             </div>
-                             <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{data.name}</p>
-                             <p className="text-xs text-emerald-600 dark:text-emerald-400 font-bold">
-                                 امتیاز کل: <span className="text-lg">{posScore - (negTotal * 0.5)}</span>
-                             </p>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-4 gap-2 mb-4">
-                        <div className="bg-emerald-50 dark:bg-emerald-900/20 p-2 rounded-xl text-center border border-emerald-100 dark:border-emerald-900/30">
-                            <div className="text-xs text-emerald-600 dark:text-emerald-400 mb-1">حاضر</div>
-                            <div className="font-black text-lg text-emerald-700 dark:text-emerald-300">{present}</div>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded-xl text-center border border-red-100 dark:border-red-900/30">
-                            <div className="text-xs text-red-600 dark:text-red-400 mb-1">غایب</div>
-                            <div className="font-black text-lg text-red-700 dark:text-red-300">{absent}</div>
-                        </div>
-                        <div className="bg-amber-50 dark:bg-amber-900/20 p-2 rounded-xl text-center border border-amber-100 dark:border-amber-900/30">
-                            <div className="text-xs text-amber-600 dark:text-amber-400 mb-1">تاخیر</div>
-                            <div className="font-black text-lg text-amber-700 dark:text-amber-300">{late}</div>
-                        </div>
-                         <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded-xl text-center border border-purple-100 dark:border-purple-900/30">
-                            <div className="text-xs text-purple-600 dark:text-purple-400 mb-1">موارد منفی</div>
-                            <div className="font-black text-lg text-purple-700 dark:text-purple-300">{negTotal}</div>
-                        </div>
-                    </div>
-
-                    <div className="mb-4 bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 pb-0">
-                         <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 px-1">روند نمرات</h4>
-                         <div className="h-40 w-full" style={{ direction: 'ltr' }}>
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={chartData} margin={{ top: 15, right: 10, left: -20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e5e7eb" />
-                                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} tickLine={false} axisLine={false} />
-                                    <YAxis hide domain={[0, 20]} />
-                                    <Bar dataKey="score" fill="#10b981" radius={[4, 4, 0, 0]} barSize={24}>
-                                        <LabelList dataKey="score" position="top" style={{ fontSize: 10, fill: '#374151', fontWeight: 'bold' }} />
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                         </div>
-                    </div>
-
-                    <div>
-                        <h4 className="text-xs font-bold text-gray-500 dark:text-gray-400 mb-2 px-1">تاریخچه جلسات</h4>
-                        <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                            <table className="w-full text-xs text-right">
-                                <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                                    <tr>
-                                        <th className="p-2 font-bold">تاریخ</th>
-                                        <th className="p-2 font-bold">وضعیت</th>
-                                        <th className="p-2 font-bold">توضیحات</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-                                    {sessionHistory.length === 0 ? (
-                                        <tr><td colSpan={3} className="p-4 text-center text-gray-400">بدون سابقه</td></tr>
-                                    ) : (
-                                        sessionHistory.map((h, i) => (
-                                            <tr key={i}>
-                                                <td className="p-2 text-gray-700 dark:text-gray-300 w-24">
-                                                    <div className="font-bold">{h.date}</div>
-                                                    <div className="text-[10px] text-gray-400">{h.day}</div>
-                                                </td>
-                                                <td className={`p-2 font-bold w-16 ${h.statusColor}`}>{h.status}</td>
-                                                <td className="p-2 text-gray-600 dark:text-gray-400">{h.desc || '-'}</td>
-                                            </tr>
-                                        ))
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
   };
 
   if (activeSession) {
@@ -911,170 +547,38 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       </div>
 
       <div className="p-4">
-        {/* STUDENTS TAB */}
         {currentTab === 'STUDENTS' && (
-            <div className="space-y-3">
-                {data.students.length === 0 ? (
-                    <div className="text-center text-gray-400 mt-10">
-                        <Icons.Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>هنوز دانش‌آموزی اضافه نشده است.</p>
-                    </div>
-                ) : (
-                    data.students.map((student) => (
-                        <div key={student.id} onClick={() => { setSelectedStudentForReport(student); setShowIndividualReport(true); }} className="bg-white dark:bg-gray-800 p-4 rounded-2xl flex items-center gap-4 shadow-sm border border-gray-100 dark:border-gray-700 active:scale-[0.99] transition-transform">
-                             <div className="relative">
-                                 {student.avatarUrl ? (
-                                     <img src={student.avatarUrl} className="w-12 h-12 rounded-full object-cover border border-gray-200 dark:border-gray-600" />
-                                 ) : (
-                                     <div className="w-12 h-12 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 font-bold text-lg">
-                                         {student.name.charAt(0)}
-                                     </div>
-                                 )}
-                                 <div className="absolute -bottom-1 -right-1 bg-white dark:bg-gray-800 rounded-full p-1.5 shadow-md border border-gray-100 dark:border-gray-600 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors z-10" onClick={(e) => triggerProfileImagePicker(e, student.id)}>
-                                     <Icons.Camera size={14} className="text-emerald-600 dark:text-emerald-400" />
-                                 </div>
-                             </div>
-                             <div className="flex-1">
-                                 <h3 className="font-bold text-gray-900 dark:text-white">{student.name}</h3>
-                                 <p className="text-xs text-gray-500 dark:text-gray-400">{student.phoneNumber || 'بدون شماره'}</p>
-                             </div>
-                             <div className="flex gap-2">
-                                <button onClick={(e) => handleEditStudent(student, e)} className="p-2 text-gray-400 hover:text-blue-500 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <Icons.Pencil size={18} />
-                                </button>
-                                <button onClick={(e) => handleDeleteStudent(e, student.id)} className="p-2 text-gray-400 hover:text-red-500 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                    <Icons.Delete size={18} />
-                                </button>
-                             </div>
-                        </div>
-                    ))
-                )}
-            </div>
+            <StudentListTab 
+                students={data.students}
+                setSelectedStudentForReport={setSelectedStudentForReport}
+                setShowIndividualReport={setShowIndividualReport}
+                triggerProfileImagePicker={triggerProfileImagePicker}
+                handleEditStudent={handleEditStudent}
+                handleDeleteStudent={handleDeleteStudent}
+            />
         )}
 
-        {/* SESSIONS TAB */}
         {currentTab === 'SESSIONS' && (
-            <div className="space-y-3">
-                {data.sessions.length === 0 ? (
-                    <div className="text-center text-gray-400 mt-10">
-                        <Icons.Calendar className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>هنوز جلسه‌ای ثبت نشده است.</p>
-                    </div>
-                ) : (
-                    [...data.sessions].reverse().map((session) => (
-                        <div key={session.id} onClick={() => setActiveSession(session)} className="bg-white dark:bg-gray-800 p-4 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 flex justify-between items-center active:scale-[0.99] transition-transform cursor-pointer group">
-                             <div className="flex items-center gap-3">
-                                 <div className="bg-purple-100 dark:bg-purple-900/30 w-12 h-12 rounded-2xl flex flex-col items-center justify-center text-purple-700 dark:text-purple-300 font-bold leading-none">
-                                     <span className="text-[10px] opacity-70">{session.dayOfWeek}</span>
-                                     <span className="text-sm mt-0.5">{formatJalaali(session.date).split('/')[2]}</span>
-                                 </div>
-                                 <div>
-                                     <h3 className="font-bold text-gray-900 dark:text-white">{formatJalaali(session.date)}</h3>
-                                     <div className="flex gap-2 text-xs text-gray-500 dark:text-gray-400">
-                                         <span>{session.records.filter(r => r.attendance === AttendanceStatus.PRESENT).length} حاضر</span>
-                                         <span>•</span>
-                                         <span className="text-red-500">{session.records.filter(r => r.attendance === AttendanceStatus.ABSENT).length} غایب</span>
-                                     </div>
-                                 </div>
-                             </div>
-                             <div className="flex items-center gap-2">
-                                {session.lessonPlan && <Icons.File className="text-purple-400" size={16} />}
-                                <button onClick={(e) => deleteSession(e, session.id)} className="p-2 text-gray-300 hover:text-red-500">
-                                    <Icons.Delete size={18} />
-                                </button>
-                                <Icons.Back size={16} className="text-gray-300 rotate-180" />
-                             </div>
-                        </div>
-                    ))
-                )}
-            </div>
+            <SessionListTab 
+                sessions={data.sessions}
+                setActiveSession={setActiveSession}
+                deleteSession={deleteSession}
+            />
         )}
 
-        {/* GRADES TAB */}
         {currentTab === 'GRADES' && (
-             <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-                <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                        <thead className="bg-gray-50 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-b dark:border-gray-600">
-                            <tr>
-                                <th className="p-3 text-right whitespace-nowrap sticky right-0 bg-gray-50 dark:bg-gray-700 z-10 border-l dark:border-gray-600">دانش‌آموز</th>
-                                {data.type === ClassType.MODULAR ? (
-                                    [1,2,3,4,5].map(i => <th key={i} className="p-3 text-center whitespace-nowrap">پودمان {i}</th>)
-                                ) : (
-                                    <>
-                                        <th className="p-3 text-center whitespace-nowrap">مستمر ۱</th>
-                                        <th className="p-3 text-center whitespace-nowrap">پایانی ۱</th>
-                                        <th className="p-3 text-center whitespace-nowrap">مستمر ۲</th>
-                                        <th className="p-3 text-center whitespace-nowrap">پایانی ۲</th>
-                                    </>
-                                )}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                            {data.students.map(student => {
-                                const perf = data.performance?.find(p => p.studentId === student.id);
-                                return (
-                                    <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                        <td className="p-3 font-bold text-gray-900 dark:text-white sticky right-0 bg-white dark:bg-gray-800 border-l dark:border-gray-700 z-10">{student.name}</td>
-                                        {data.type === ClassType.MODULAR ? (
-                                            [1,2,3,4,5].map(i => {
-                                                const score = perf?.gradesModular.find(g => g.moduleId === i)?.score || '';
-                                                return (
-                                                    <td key={i} className="p-1">
-                                                        <input 
-                                                            type="number" 
-                                                            className="w-full text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 focus:bg-emerald-50 dark:focus:bg-emerald-900/20 focus:ring-1 focus:ring-emerald-500 outline-none transition-colors"
-                                                            placeholder="-"
-                                                            value={score}
-                                                            onChange={e => updateModularGrade(student.id, i as any, parseFloat(e.target.value))}
-                                                        />
-                                                    </td>
-                                                );
-                                            })
-                                        ) : (
-                                            <>
-                                                {[1, 2].map(term => (
-                                                    <React.Fragment key={term}>
-                                                        <td className="p-1">
-                                                            <input type="number" className="w-full text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 focus:bg-emerald-50 focus:ring-1 outline-none" placeholder="-"
-                                                                value={perf?.gradesTerm.find(g => g.termId === term)?.continuous || ''}
-                                                                onChange={e => updateTermGrade(student.id, term as any, 'continuous', parseFloat(e.target.value))}
-                                                            />
-                                                        </td>
-                                                        <td className="p-1">
-                                                            <input type="number" className="w-full text-center p-2 rounded-lg bg-gray-50 dark:bg-gray-700 focus:bg-emerald-50 focus:ring-1 outline-none border-l dark:border-gray-700" placeholder="-"
-                                                                value={perf?.gradesTerm.find(g => g.termId === term)?.final || ''}
-                                                                onChange={e => updateTermGrade(student.id, term as any, 'final', parseFloat(e.target.value))}
-                                                            />
-                                                        </td>
-                                                    </React.Fragment>
-                                                ))}
-                                            </>
-                                        )}
-                                    </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
-                </div>
-             </div>
+             <GradesTab 
+                data={data}
+                updateModularGrade={updateModularGrade}
+                updateTermGrade={updateTermGrade}
+             />
         )}
 
-        {/* CHARTS TAB */}
         {currentTab === 'CHARTS' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div onClick={() => setShowClassReport(true)} className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-6 text-white shadow-lg shadow-emerald-200 dark:shadow-none cursor-pointer hover:scale-[1.02] transition-transform">
-                    <Icons.Chart size={40} className="mb-4 opacity-80" />
-                    <h3 className="text-xl font-black mb-1">گزارش جامع کلاس</h3>
-                    <p className="text-emerald-100 text-sm opacity-90">مشاهده لیست نمرات، غایبین و موارد انضباطی کل کلاس</p>
-                </div>
-
-                <div onClick={handleFullExport} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-gray-100 dark:border-gray-700 shadow-sm cursor-pointer hover:border-emerald-500 dark:hover:border-emerald-500 transition-colors group">
-                    <Icons.Download size={40} className="mb-4 text-gray-400 group-hover:text-emerald-500 transition-colors" />
-                    <h3 className="text-xl font-black text-gray-900 dark:text-white mb-1">خروجی اکسل</h3>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">دریافت فایل Excel شامل تمام اطلاعات کلاس</p>
-                </div>
-            </div>
+            <ChartsTab 
+                setShowClassReport={setShowClassReport}
+                handleFullExport={handleFullExport}
+            />
         )}
       </div>
 
@@ -1090,106 +594,66 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       )}
 
       {/* Modals */}
-      {showAddStudent && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">افزودن دانش‌آموز</h3>
-                  
-                  <div className="space-y-3 mb-6">
-                      <input 
-                        type="text" 
-                        placeholder="نام و نام خانوادگی" 
-                        value={newStudentName} 
-                        onChange={e => setNewStudentName(e.target.value)} 
-                        className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:border-emerald-500 dark:text-white"
-                        autoFocus
-                      />
-                      <input 
-                        type="tel" 
-                        placeholder="شماره تماس (اختیاری)" 
-                        value={newStudentPhone} 
-                        onChange={e => setNewStudentPhone(e.target.value)} 
-                        className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 outline-none focus:border-emerald-500 dark:text-white"
-                      />
-                  </div>
+      <AddStudentModal 
+        isOpen={showAddStudent} 
+        onClose={() => setShowAddStudent(false)} 
+        newStudentName={newStudentName}
+        setNewStudentName={setNewStudentName}
+        newStudentPhone={newStudentPhone}
+        setNewStudentPhone={setNewStudentPhone}
+        handleExcelImport={handleExcelImport}
+        addStudent={addStudent}
+      />
+      
+      <EditStudentModal 
+        isOpen={!!editingStudent}
+        onClose={() => setEditingStudent(null)}
+        newStudentName={newStudentName}
+        setNewStudentName={setNewStudentName}
+        newStudentPhone={newStudentPhone}
+        setNewStudentPhone={setNewStudentPhone}
+        saveEditedStudent={saveEditedStudent}
+      />
 
-                  {/* Batch Import Button */}
-                  <div className="mb-4 relative border-t pt-4">
-                      <p className="text-xs text-center text-gray-400 mb-2">یا وارد کردن لیست از اکسل</p>
-                      <input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      <button className="w-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 py-2 rounded-xl text-sm font-bold">انتخاب فایل اکسل</button>
-                  </div>
+      <NewSessionModal 
+        isOpen={showNewSessionModal}
+        onClose={() => setShowNewSessionModal(false)}
+        newSessionDate={newSessionDate}
+        setNewSessionDate={setNewSessionDate}
+        newSessionDay={newSessionDay}
+        setNewSessionDay={setNewSessionDay}
+        newSessionModule={newSessionModule}
+        setNewSessionModule={setNewSessionModule}
+        handleConfirmCreateSession={handleConfirmCreateSession}
+      />
 
-                  <div className="flex gap-3">
-                      <button onClick={() => setShowAddStudent(false)} className="flex-1 py-3 text-gray-500 font-bold">لغو</button>
-                      <button onClick={addStudent} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">افزودن</button>
-                  </div>
-              </div>
-          </div>
+      <EditClassInfoModal 
+        isOpen={showEditClassInfo}
+        onClose={() => setShowEditClassInfo(false)}
+        editClassName={editClassName}
+        setEditClassName={setEditClassName}
+        editBookName={editBookName}
+        setEditBookName={setEditBookName}
+        handleEditClassInfo={handleEditClassInfo}
+        handleDeleteClass={handleDeleteClass}
+      />
+
+      {showClassReport && (
+        <FullClassReportModal 
+            classroom={data} 
+            onClose={() => setShowClassReport(false)} 
+            shareReportAsImage={shareElementAsImage} 
+        />
       )}
       
-      {/* Edit Student Modal */}
-      {editingStudent && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">ویرایش دانش‌آموز</h3>
-                  <input type="text" value={newStudentName} onChange={e => setNewStudentName(e.target.value)} className="w-full p-3 mb-3 rounded-xl bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 dark:text-white"/>
-                  <input type="tel" value={newStudentPhone} onChange={e => setNewStudentPhone(e.target.value)} className="w-full p-3 mb-6 rounded-xl bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 dark:text-white"/>
-                  <div className="flex gap-3">
-                      <button onClick={() => setEditingStudent(null)} className="flex-1 text-gray-500 font-bold">لغو</button>
-                      <button onClick={saveEditedStudent} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold">ذخیره</button>
-                  </div>
-              </div>
-          </div>
+      {showIndividualReport && selectedStudentForReport && (
+        <StudentReportModal 
+            student={selectedStudentForReport}
+            classroom={data}
+            onClose={() => setShowIndividualReport(false)}
+            shareReportAsImage={shareElementAsImage}
+        />
       )}
-
-      {/* New Session Modal */}
-      {showNewSessionModal && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                  <div className="text-center mb-6">
-                      <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-purple-600 dark:text-purple-400">
-                          <Icons.Calendar size={32} />
-                      </div>
-                      <h3 className="text-xl font-black text-gray-900 dark:text-white">جلسه جدید</h3>
-                  </div>
-                  
-                  <div className="space-y-4 mb-6">
-                      <div>
-                          <label className="text-xs font-bold text-gray-500 mb-1 block px-1">تاریخ جلسه</label>
-                          <input type="text" value={newSessionDate} onChange={e => setNewSessionDate(e.target.value)} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center font-bold text-lg dark:text-white" dir="ltr"/>
-                      </div>
-                      <div>
-                          <label className="text-xs font-bold text-gray-500 mb-1 block px-1">روز هفته</label>
-                          <input type="text" value={newSessionDay} onChange={e => setNewSessionDay(e.target.value)} className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center font-bold dark:text-white"/>
-                      </div>
-                  </div>
-
-                  <div className="flex gap-3">
-                      <button onClick={() => setShowNewSessionModal(false)} className="flex-1 py-3 text-gray-500 font-bold">لغو</button>
-                      <button onClick={handleConfirmCreateSession} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">ایجاد</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
-      {/* Edit Class Info Modal */}
-      {showEditClassInfo && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-               <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
-                  <h3 className="text-lg font-black text-gray-900 dark:text-white mb-4">ویرایش اطلاعات کلاس</h3>
-                  <input type="text" placeholder="نام کلاس" value={editClassName} onChange={e => setEditClassName(e.target.value)} className="w-full mb-3 p-3 rounded-xl border dark:bg-gray-700 dark:border-gray-600 dark:text-white"/>
-                  <input type="text" placeholder="نام درس" value={editBookName} onChange={e => setEditBookName(e.target.value)} className="w-full mb-6 p-3 rounded-xl border dark:bg-gray-700 dark:border-gray-600 dark:text-white"/>
-                  
-                  <button onClick={handleEditClassInfo} className="w-full bg-emerald-600 text-white py-3 rounded-xl font-bold mb-3">ذخیره تغییرات</button>
-                  <button onClick={handleDeleteClass} className="w-full border border-red-200 text-red-500 py-3 rounded-xl font-bold hover:bg-red-50 dark:hover:bg-red-900/20">حذف کلاس</button>
-                  <button onClick={() => setShowEditClassInfo(false)} className="w-full mt-2 text-gray-400 text-sm">بازگشت</button>
-               </div>
-          </div>
-      )}
-
-      {renderClassReportModal()}
-      {renderIndividualReportModal()}
       
       {/* Hidden File Input for Image Upload */}
       <input 
