@@ -658,6 +658,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         newSessionDate={newSessionDate}
         setNewSessionDate={setNewSessionDate}
         newSessionDay={newSessionDay}
+        setNewSessionDay={setNewSessionDay}
         newSessionModule={newSessionModule}
         setNewSessionModule={setNewSessionModule}
         classType={data.type}
