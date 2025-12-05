@@ -1,17 +1,13 @@
-
+// @ts-ignore
 import pdfMake from "pdfmake/build/pdfmake";
-import pdfFonts from "pdfmake/build/vfs_fonts";
+// @ts-ignore
+import * as pdfFonts from "pdfmake/build/vfs_fonts";
 import { Classroom, ClassType } from "../types";
 
-// Assign vfs for client-side usage
-if (pdfFonts && pdfFonts.pdfMake) {
-    (pdfMake as any).vfs = vfsFonts.vfs;
-} else if (pdfFonts) {
-    (pdfMake as any).vfs = pdfFonts;
-}
+// Attach VFS fonts
+(pdfMake as any).vfs = (pdfFonts as any).vfs;
 
 const loadPersianFont = async () => {
-    // List of reliable sources for Vazirmatn font
     const fontUrls = [
         'https://cdn.jsdelivr.net/gh/rastikerdar/vazirmatn@v33.0.3/fonts/ttf/Vazirmatn-Regular.ttf',
         'https://raw.githubusercontent.com/rastikerdar/vazirmatn/master/fonts/ttf/Vazirmatn-Regular.ttf',
@@ -22,7 +18,7 @@ const loadPersianFont = async () => {
         try {
             const response = await fetch(url, { cache: 'force-cache' });
             if (!response.ok) continue;
-            
+
             const buffer = await response.arrayBuffer();
             let binary = '';
             const bytes = new Uint8Array(buffer);
@@ -31,11 +27,9 @@ const loadPersianFont = async () => {
                 binary += String.fromCharCode(bytes[i]);
             }
             const base64 = window.btoa(binary);
-            if (base64 && base64.length > 100) {
-                return base64;
-            }
-        } catch (error) {
-            console.warn(`Failed to load font from ${url}`, error);
+            if (base64 && base64.length > 100) return base64;
+        } catch (e) {
+            console.warn(`Font load failed: ${url}`, e);
         }
     }
     return null;
@@ -43,18 +37,17 @@ const loadPersianFont = async () => {
 
 export const exportClassReportPDF = async (classroom: Classroom) => {
     let persianFontBase64 = null;
-    
+
     try {
         persianFontBase64 = await loadPersianFont();
     } catch (e) {
-        console.error("Critical error loading font", e);
+        console.error("Font load critical error", e);
     }
 
     if (!persianFontBase64) {
-        alert("هشدار: فونت فارسی بارگذاری نشد. فایل خروجی ممکن است ناخوانا باشد. لطفاً اتصال اینترنت خود را بررسی کنید.");
+        alert("فونت فارسی بارگذاری نشد. ممکن است PDF ناخوانا باشد.");
     }
-    
-    // Configure Fonts
+
     const fonts = {
         Roboto: {
             normal: 'Roboto-Regular.ttf',
@@ -72,66 +65,44 @@ export const exportClassReportPDF = async (classroom: Classroom) => {
         } : {})
     };
 
-    // Add to VFS
     if (persianFontBase64) {
-        if (!pdfMake.vfs) pdfMake.vfs = {};
         pdfMake.vfs["Vazirmatn.ttf"] = persianFontBase64;
     }
 
     const isModular = classroom.type === ClassType.MODULAR;
 
-    // Define Header Columns (Visual Left-to-Right for RTL PDF)
-    // RTL Layout: [Notes] ... [Grades] ... [Absence] [Name] [Row]
-    
     const headers = [];
     const widths = [];
 
-    // 1. Notes (Leftmost visually)
     headers.push({ text: 'توضیحات', style: 'tableHeader' });
     widths.push('*');
 
-    // 2. Grades (Reverse order for RTL visual: Last to First)
     if (isModular) {
-        // Pod 5 -> Pod 1
         [5, 4, 3, 2, 1].forEach(i => {
-             headers.push({ text: `پودمان ${i}`, style: 'tableHeader' });
-             widths.push(35);
+            headers.push({ text: `پودمان ${i}`, style: 'tableHeader' });
+            widths.push(35);
         });
     } else {
-        // Term 2 Final, Term 2 Cont, Term 1 Final, Term 1 Cont
-        headers.push({ text: 'پایانی ۲', style: 'tableHeader' });
-        widths.push(40);
-        headers.push({ text: 'مستمر ۲', style: 'tableHeader' });
-        widths.push(40);
-        headers.push({ text: 'پایانی ۱', style: 'tableHeader' });
-        widths.push(40);
-        headers.push({ text: 'مستمر ۱', style: 'tableHeader' });
-        widths.push(40);
+        headers.push({ text: 'پایانی ۲', style: 'tableHeader' }); widths.push(40);
+        headers.push({ text: 'مستمر ۲', style: 'tableHeader' }); widths.push(40);
+        headers.push({ text: 'پایانی ۱', style: 'tableHeader' }); widths.push(40);
+        headers.push({ text: 'مستمر ۱', style: 'tableHeader' }); widths.push(40);
     }
 
-    // 3. Absences
-    headers.push({ text: 'غیبت', style: 'tableHeader' });
-    widths.push(35);
-
-    // 4. Name
-    headers.push({ text: 'نام دانش‌آموز', style: 'tableHeader' });
-    widths.push(100);
-
-    // 5. Row (Rightmost visually)
-    headers.push({ text: 'ردیف', style: 'tableHeader' });
-    widths.push(25);
-
+    headers.push({ text: 'غیبت', style: 'tableHeader' }); widths.push(35);
+    headers.push({ text: 'نام دانش‌آموز', style: 'tableHeader' }); widths.push(100);
+    headers.push({ text: 'ردیف', style: 'tableHeader' }); widths.push(25);
 
     const docDefinition: any = {
         pageSize: 'A4',
-        pageOrientation: isModular ? 'landscape' : 'portrait', // Landscape for modular to fit 5 pods
+        pageOrientation: isModular ? 'landscape' : 'portrait',
         info: {
             title: `Report ${classroom.name}`,
-            author: 'Madrese Yar',
+            author: 'Madrese Yar'
         },
         content: [
             { text: `گزارش جامع کلاس ${classroom.name}`, style: 'header' },
-            { text: `درس: ${classroom.bookName} | سال تحصیلی: ${classroom.academicYear}`, style: 'subheader' },
+            { text: `درس: ${classroom.bookName}  |  سال تحصیلی: ${classroom.academicYear}`, style: 'subheader' },
             {
                 table: {
                     headerRows: 1,
@@ -142,25 +113,11 @@ export const exportClassReportPDF = async (classroom: Classroom) => {
                     ]
                 },
                 layout: {
-                    fillColor: function (rowIndex: number) {
-                        return (rowIndex % 2 === 0) ? '#F3F4F6' : null;
-                    },
-                    hLineWidth: function (i: number, node: any) {
-                        return (i === 0 || i === node.table.body.length) ? 2 : 1;
-                    },
-                    vLineWidth: function (i: number, node: any) {
-                        return (i === 0 || i === node.table.widths.length) ? 2 : 1;
-                    },
-                    hLineColor: function (i: number, node: any) {
-                        return (i === 0 || i === node.table.body.length) ? '#111827' : '#9CA3AF';
-                    },
-                    vLineColor: function (i: number, node: any) {
-                        return (i === 0 || i === node.table.widths.length) ? '#111827' : '#9CA3AF';
-                    },
-                    paddingLeft: function(i: number) { return 4; },
-                    paddingRight: function(i: number) { return 4; },
-                    paddingTop: function(i: number) { return 4; },
-                    paddingBottom: function(i: number) { return 4; },
+                    fillColor: (i: number) => (i % 2 === 0 ? '#F3F4F6' : null),
+                    hLineWidth: (i: number, n: any) => (i === 0 || i === n.table.body.length ? 2 : 1),
+                    vLineWidth: (i: number, n: any) => (i === 0 || i === n.table.widths.length ? 2 : 1),
+                    hLineColor: (i: number, n: any) => (i === 0 || i === n.table.body.length ? '#111827' : '#9CA3AF'),
+                    vLineColor: (i: number, n: any) => (i === 0 || i === n.table.widths.length ? '#111827' : '#9CA3AF')
                 }
             }
         ],
@@ -182,86 +139,70 @@ export const exportClassReportPDF = async (classroom: Classroom) => {
                 bold: true,
                 fontSize: 10,
                 color: 'white',
-                fillColor: '#059669', // Emerald 600
+                fillColor: '#059669',
                 alignment: 'center',
                 margin: [0, 2, 0, 2]
             },
             tableCell: {
                 fontSize: 9,
-                alignment: 'center',
-                margin: [0, 2, 0, 2]
+                alignment: 'center'
             },
             tableCellName: {
                 fontSize: 9,
-                alignment: 'right', // Align names right for Persian
-                bold: true,
-                margin: [0, 2, 5, 2]
+                alignment: 'right',
+                bold: true
             }
         },
         defaultStyle: {
             font: persianFontBase64 ? 'Vazirmatn' : 'Roboto',
-            direction: 'rtl' // Enable RTL
+            direction: 'rtl'
         }
     };
 
-    // @ts-ignore
-    pdfMake.createPdf(docDefinition, null, fonts, pdfMake.vfs).download(`${classroom.name}_FullReport.pdf`);
+    pdfMake.createPdf(docDefinition).download(`${classroom.name}_FullReport.pdf`);
 };
 
 const generateRows = (classroom: Classroom, isModular: boolean) => {
     return classroom.students.map((student, index) => {
         const perf = classroom.performance?.find(p => p.studentId === student.id);
-        
-        // Calculate Absences
+
         let absentCount = 0;
         classroom.sessions.forEach(sess => {
             const r = sess.records.find(rec => rec.studentId === student.id);
             if (r?.attendance === 'ABSENT') absentCount++;
         });
 
-        // Generate Notes (aggregated)
         let notes = '';
         if (absentCount > 3) notes += `هشدار غیبت (${absentCount}) `;
-        // Add disciplinary notes if needed, keeping it brief
-        let discCount = 0;
-        classroom.sessions.forEach(sess => {
-            const r = sess.records.find(rec => rec.studentId === student.id);
-            if (r?.discipline?.badBehavior || r?.discipline?.expelled || r?.discipline?.sleep) discCount++;
+
+        let disc = 0;
+        classroom.sessions.forEach(s => {
+            const r = s.records.find(x => x.studentId === student.id);
+            if (r?.discipline?.badBehavior || r?.discipline?.expelled || r?.discipline?.sleep) disc++;
         });
-        if (discCount > 0) notes += `| موارد انضباطی: ${discCount}`;
+        if (disc > 0) notes += `| موارد انضباطی: ${disc}`;
 
         const row = [];
-
-        // 1. Notes
         row.push({ text: notes, style: 'tableCell', alignment: 'right' });
 
-        // 2. Grades
         if (isModular) {
-            // Pod 5 -> Pod 1
             [5, 4, 3, 2, 1].forEach(i => {
-                const grade = perf?.gradesModular.find(g => g.moduleId === i);
-                const score = grade && grade.score !== undefined ? grade.score : '-';
-                row.push({ text: score, style: 'tableCell' });
+                const g = perf?.gradesModular.find(x => x.moduleId === i);
+                row.push({ text: g?.score ?? '-', style: 'tableCell' });
             });
         } else {
-            // Term 2 Final, Term 2 Cont, Term 1 Final, Term 1 Cont
             const t2 = perf?.gradesTerm.find(g => g.termId === 2);
             const t1 = perf?.gradesTerm.find(g => g.termId === 1);
-            
-            row.push({ text: t2?.final !== undefined ? t2.final : '-', style: 'tableCell' });
-            row.push({ text: t2?.continuous !== undefined ? t2.continuous : '-', style: 'tableCell' });
-            row.push({ text: t1?.final !== undefined ? t1.final : '-', style: 'tableCell' });
-            row.push({ text: t1?.continuous !== undefined ? t1.continuous : '-', style: 'tableCell' });
+
+            row.push({ text: t2?.final ?? '-', style: 'tableCell' });
+            row.push({ text: t2?.continuous ?? '-', style: 'tableCell' });
+            row.push({ text: t1?.final ?? '-', style: 'tableCell' });
+            row.push({ text: t1?.continuous ?? '-', style: 'tableCell' });
         }
 
-        // 3. Absences
-        row.push({ text: absentCount > 0 ? absentCount.toString() : '-', style: 'tableCell', color: absentCount > 3 ? 'red' : 'black' });
-
-        // 4. Name
+        row.push({ text: absentCount > 0 ? String(absentCount) : '-', style: 'tableCell', color: absentCount > 3 ? 'red' : 'black' });
         row.push({ text: student.name, style: 'tableCellName' });
-
-        // 5. Row Number
-        row.push({ text: (index + 1).toString(), style: 'tableCell' });
+        row.push({ text: String(index + 1), style: 'tableCell' });
 
         return row;
     });
