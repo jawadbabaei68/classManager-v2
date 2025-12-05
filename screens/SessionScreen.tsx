@@ -1,8 +1,9 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Session, Student, SessionRecord, AttendanceStatus, DailyLessonPlan, AIResource } from '../types';
+import { Session, Student, SessionRecord, AttendanceStatus, DailyLessonPlan, AIResource, ClassType } from '../types';
 import { formatJalaali, parseJalaaliToIso } from '../services/dateService';
 import { Icons } from '../components/Icons';
+import { createSessionsForCourse } from '../helpers/sessionHelpers';
 
 interface SessionScreenProps {
   session: Session;
@@ -10,13 +11,17 @@ interface SessionScreenProps {
   allSessions: Session[];
   onUpdate: (s: Session, shouldExit: boolean) => void;
   resource?: AIResource;
+  classType: ClassType; // Added to support dynamic headers
 }
 
-export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students, allSessions, onUpdate, resource }) => {
+export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students, allSessions, onUpdate, resource, classType }) => {
   const [records, setRecords] = useState<SessionRecord[]>([]);
   const [dateStr, setDateStr] = useState('');
   const [dayStr, setDayStr] = useState(session.dayOfWeek);
   
+  // Dynamic Periods based on class type (Term vs Modular)
+  const periods = useMemo(() => createSessionsForCourse({ type: classType }), [classType]);
+
   // Lesson Plan State
   const [showPlanModal, setShowPlanModal] = useState(false);
   const [lessonPlan, setLessonPlan] = useState<DailyLessonPlan>(session.lessonPlan || {
@@ -47,7 +52,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
       }));
       setRecords(initialRecords);
     }
-  }, []); // Empty dependency array ensures this runs once per session screen mount
+  }, []);
 
   // Find previous session
   const previousSession = useMemo(() => {
@@ -70,14 +75,13 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
         clearTimeout(autoSaveTimerRef.current);
     }
 
-    // Skip initial render
     if (records.length === 0) return;
 
     setSavingStatus('pending');
     
     autoSaveTimerRef.current = setTimeout(() => {
         handleSave(false);
-    }, 1000); // 1 second debounce
+    }, 1000);
 
     return () => {
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -99,7 +103,7 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
   };
 
   const handleSave = (shouldExit: boolean) => {
-    if (!dateStr) return; // Wait for initialization
+    if (!dateStr) return;
     
     const isoDate = parseJalaaliToIso(dateStr);
     if (!isoDate) return; 
@@ -114,7 +118,6 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
         lessonPlan
     }, shouldExit);
 
-    // Fake a small delay for UI feedback if not exiting
     if (!shouldExit) {
         setTimeout(() => setSavingStatus('saved'), 500);
     }
@@ -208,24 +211,46 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                 </button>
             </div>
         </div>
-        <div className="flex gap-3 max-w-3xl mx-auto w-full">
-            <div className="relative flex-1">
+
+        {/* Inputs Row */}
+        <div className="flex flex-col gap-3 max-w-3xl mx-auto w-full">
+            
+            {/* Modern Segmented Control for Period Selection */}
+            <div className="flex bg-gray-100 dark:bg-gray-700 p-1 rounded-xl overflow-x-auto no-scrollbar">
+                {periods.map(p => (
+                    <button
+                        key={p.id}
+                        onClick={() => onUpdate({...session, moduleId: p.id}, false)}
+                        className={`flex-1 min-w-[80px] py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${
+                            (session.moduleId || 1) === p.id 
+                            ? 'bg-white dark:bg-gray-600 text-emerald-600 dark:text-emerald-400 shadow-sm' 
+                            : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                        }`}
+                    >
+                        {p.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="flex gap-3">
+                <div className="relative flex-[2]">
+                    <input 
+                        type="text" 
+                        value={dateStr} 
+                        onChange={(e) => setDateStr(e.target.value)}
+                        placeholder="۱۴۰۳/۰۱/۰۱"
+                        className="w-full border border-gray-300 dark:border-gray-500 p-2.5 rounded-xl text-sm bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-900 dark:text-white text-left pl-8 shadow-sm font-bold"
+                        dir="ltr"
+                    />
+                    <Icons.Calendar className="absolute left-2.5 top-2.5 text-gray-400 w-4 h-4" />
+                </div>
                 <input 
                     type="text" 
-                    value={dateStr} 
-                    onChange={(e) => setDateStr(e.target.value)}
-                    placeholder="۱۴۰۳/۰۱/۰۱"
-                    className="w-full border border-gray-200 dark:border-gray-600 p-2.5 rounded-xl text-sm bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-900 dark:text-white text-left pl-8"
-                    dir="ltr"
+                    value={dayStr}
+                    onChange={(e) => setDayStr(e.target.value)}
+                    className="border border-gray-300 dark:border-gray-500 p-2.5 rounded-xl flex-1 text-sm text-center bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-900 dark:text-white shadow-sm font-bold"
                 />
-                <Icons.Calendar className="absolute left-2.5 top-2.5 text-gray-400 w-4 h-4" />
             </div>
-            <input 
-                type="text" 
-                value={dayStr}
-                onChange={(e) => setDayStr(e.target.value)}
-                className="border border-gray-200 dark:border-gray-600 p-2.5 rounded-xl w-1/3 text-sm text-center bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-600 focus:ring-2 focus:ring-emerald-500 outline-none transition-all text-gray-900 dark:text-white"
-            />
         </div>
       </div>
 
@@ -271,19 +296,19 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                         <div className="flex bg-gray-50 dark:bg-gray-700 rounded-xl p-1.5 border border-gray-100 dark:border-gray-600 w-full sm:w-auto shrink-0">
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.PRESENT })}
-                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-2 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
                                 <Icons.Present size={20} />
                             </button>
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.LATE })}
-                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.LATE ? 'bg-amber-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-2 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.LATE ? 'bg-amber-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
                                 <Icons.Late size={20} />
                             </button>
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.ABSENT })}
-                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.ABSENT ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-2 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.ABSENT ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
                                 <Icons.Absent size={20} />
                             </button>

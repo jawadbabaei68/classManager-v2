@@ -1,0 +1,22 @@
+
+Changelog - mrhonaramoz v2.1
+
+1. Dynamic Session Structure:
+   - Added `helpers/sessionHelpers.ts` to generate academic periods based on class type (Modular: Pod 1-5, Term: Term 1-2).
+   - Updated `NewSessionModal` to use dynamic dropdown options.
+   - Updated `SessionListTab` to filter sessions dynamically.
+   - Updated `SessionScreen` to display dynamic period selection.
+
+2. PDF Export:
+   - Implemented `utils/exportPdf.ts` using `pdfmake`.
+   - Added "Export PDF" button to the Charts tab in `ClassScreen`.
+   - Supports Persian text rendering (requires configured fonts in VFS).
+
+3. UI Optimization & Theme:
+   - Defined a new Color Palette in `constants.ts` and `tailwind.config.js`.
+   - Created mobile-friendly `Button` and `Card` components in `components/ui`.
+   - Applied new Button component in `ClassScreen`.
+
+4. SessionScreen Updates:
+   - Added `classType` prop to `SessionScreen`.
+   - Implemented dynamic header selector for Modules/Terms using `createSessionsForCourse`.

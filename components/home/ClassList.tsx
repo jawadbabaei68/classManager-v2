@@ -34,7 +34,7 @@ export const ClassList: React.FC<ClassListProps> = ({
                 <Icons.Home className="w-16 h-16 text-emerald-300 mb-4" />
                 <p className="text-emerald-900 dark:text-emerald-100 font-black text-xl mb-2">سال تحصیلی {academicYear}</p>
                 <p className="text-sm text-emerald-700 mb-4">هیچ کلاسی ثبت نشده است.</p>
-                <button onClick={() => setShowModal(true)} className="text-emerald-600 border border-emerald-200 px-4 py-2 rounded-xl">+ ایجاد کلاس</button>
+                <button onClick={() => setShowModal(true)} className="text-emerald-600 border border-emerald-200 px-2 py-2 rounded-xl">+ ایجاد کلاس</button>
             </div>
         ) : (
             filteredClasses.map((cls) => (

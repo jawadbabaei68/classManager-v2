@@ -10,12 +10,14 @@ import { Capacitor } from '@capacitor/core';
 import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
+import { exportClassReportPDF } from '../utils/exportPdf'; 
 
 // Sub Components
 import { StudentListTab, SessionListTab, GradesTab, ChartsTab } from '../components/class/ClassTabs';
 import { AddStudentModal, EditStudentModal, NewSessionModal, EditClassInfoModal } from '../components/class/ClassModals';
 import { StudentReportModal, FullClassReportModal } from '../components/reports/ReportViewers';
 import { shareElementAsImage } from '../utils/exportUtils';
+import { Button } from '../components/ui/Button';
 
 interface ClassScreenProps {
   classroom: Classroom;
@@ -48,11 +50,12 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   // Edit Student State
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
 
-  // New Session Modal State
+  // New/Edit Session Modal State
   const [showNewSessionModal, setShowNewSessionModal] = useState(false);
   const [newSessionDate, setNewSessionDate] = useState('');
   const [newSessionDay, setNewSessionDay] = useState('');
   const [newSessionModule, setNewSessionModule] = useState<number>(1);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
 
   // Edit Class Form State
   const [editClassName, setEditClassName] = useState(data.name);
@@ -288,6 +291,15 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     }
   };
 
+  const handlePDFExport = async () => {
+    try {
+        await exportClassReportPDF(data);
+    } catch (error) {
+        console.error("PDF Export Error", error);
+        alert("خطا در ایجاد فایل PDF. لطفاً اینترنت خود را بررسی کنید (برای دریافت فونت).");
+    }
+  };
+
   const compressImage = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -390,28 +402,52 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       const todayStr = formatJalaali(today.toISOString());
       const dayName = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' }).format(today);
       
+      setEditingSession(null);
       setNewSessionDate(todayStr);
       setNewSessionDay(dayName);
       setNewSessionModule(1);
       setShowNewSessionModal(true);
   };
 
-  const handleConfirmCreateSession = () => {
+  const handleEditSession = (session: Session, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setEditingSession(session);
+      setNewSessionDate(formatJalaali(session.date));
+      setNewSessionDay(session.dayOfWeek);
+      setNewSessionModule(session.moduleId || 1);
+      setShowNewSessionModal(true);
+  };
+
+  const handleConfirmCreateOrEditSession = () => {
     const isoDate = parseJalaaliToIso(newSessionDate);
     if (!isoDate) {
         alert("فرمت تاریخ نادرست است");
         return;
     }
 
-    const newSession: Session = {
-      id: Date.now().toString(),
-      classId: data.id,
-      moduleId: newSessionModule,
-      date: isoDate,
-      dayOfWeek: newSessionDay,
-      records: []
-    };
-    setActiveSession(newSession);
+    if (editingSession) {
+        // Edit Mode
+        const updatedSessions = data.sessions.map(s => s.id === editingSession.id ? {
+            ...s,
+            date: isoDate,
+            dayOfWeek: newSessionDay,
+            moduleId: newSessionModule
+        } : s);
+        
+        handleUpdate({ ...data, sessions: updatedSessions });
+        setEditingSession(null);
+    } else {
+        // Create Mode
+        const newSession: Session = {
+            id: Date.now().toString(),
+            classId: data.id,
+            moduleId: newSessionModule,
+            date: isoDate,
+            dayOfWeek: newSessionDay,
+            records: []
+        };
+        setActiveSession(newSession);
+    }
     setShowNewSessionModal(false);
   };
 
@@ -450,7 +486,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       let calculatedPos = 0;
       let calculatedNeg = 0;
       data.sessions.forEach(sess => {
-          // Default to module 1 if undefined to handle legacy data
           const sModule = sess.moduleId || 1; 
           
           if (sModule === moduleId) {
@@ -467,16 +502,13 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
       const currentGrade = newGrades[idx];
       const updatedGrade = { ...currentGrade };
 
-      // Update exam score if that was the changed field
       if (field === 'examScore') {
           updatedGrade.examScore = isNaN(value) ? undefined : value;
       }
 
-      // Always update classroom points from calculation
       updatedGrade.classroomPositive = calculatedPos;
       updatedGrade.classroomNegative = calculatedNeg;
 
-      // Calculate Final Score: Exam + Positive - Negative
       const exam = updatedGrade.examScore || 0;
       updatedGrade.score = exam + calculatedPos - calculatedNeg;
 
@@ -517,10 +549,11 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
     return (
         <SessionScreen 
             session={activeSession}
-            allSessions={data.sessions}
             students={data.students}
+            allSessions={data.sessions}
             resource={data.resources.mainFile}
             onUpdate={(updatedSession, shouldExit) => saveSession(updatedSession, shouldExit)}
+            classType={data.type}
         />
     );
   }
@@ -561,8 +594,10 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         {currentTab === 'SESSIONS' && (
             <SessionListTab 
                 sessions={data.sessions}
+                classType={data.type} 
                 setActiveSession={setActiveSession}
                 deleteSession={deleteSession}
+                onEditSession={handleEditSession} // Pass the edit handler
             />
         )}
 
@@ -578,19 +613,21 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
             <ChartsTab 
                 setShowClassReport={setShowClassReport}
                 handleFullExport={handleFullExport}
+                handlePDFExport={handlePDFExport}
             />
         )}
       </div>
 
       {/* Floating Action Button (Only for Sessions and Students) */}
       {(currentTab === 'SESSIONS' || currentTab === 'STUDENTS') && (
-          <button 
+          <Button 
             onClick={currentTab === 'SESSIONS' ? openSessionModal : () => setShowAddStudent(true)}
-            className="fixed bottom-6 left-6 bg-emerald-600 text-white p-4 rounded-2xl shadow-xl hover:scale-105 transition-transform z-20 flex items-center gap-2"
+            className="fixed bottom-6 left-6 z-20 shadow-xl shadow-emerald-500/30 !bg-emerald-600 !text-white !opacity-100 hover:!bg-emerald-700 active:!scale-95 border-2 border-white dark:border-gray-800"
+            variant="primary"
+            size="lg"
           >
-            <Icons.Plus size={24} />
-            <span className="font-bold text-sm">{currentTab === 'SESSIONS' ? 'جلسه جدید' : 'دانش‌آموز جدید'}</span>
-          </button>
+            {currentTab === 'SESSIONS' ? 'جلسه جدید' : 'دانش‌آموز جدید'}
+          </Button>
       )}
 
       {/* Modals */}
@@ -621,10 +658,11 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         newSessionDate={newSessionDate}
         setNewSessionDate={setNewSessionDate}
         newSessionDay={newSessionDay}
-        setNewSessionDay={setNewSessionDay}
         newSessionModule={newSessionModule}
         setNewSessionModule={setNewSessionModule}
-        handleConfirmCreateSession={handleConfirmCreateSession}
+        classType={data.type}
+        handleConfirmCreateSession={handleConfirmCreateOrEditSession}
+        isEditing={!!editingSession}
       />
 
       <EditClassInfoModal 
@@ -655,7 +693,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         />
       )}
       
-      {/* Hidden File Input for Image Upload */}
       <input 
         type="file" 
         ref={fileInputRef} 

@@ -9,9 +9,8 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
   if (!element) return;
 
   // Measure original content width. 
-  // Add padding to ensure no edge clipping.
   const contentWidth = element.scrollWidth;
-  const EXPORT_WIDTH = Math.max(contentWidth + 50, 1000); // Increased min width for safety
+  const EXPORT_WIDTH = Math.max(contentWidth + 50, 1000); 
 
   const container = document.createElement('div');
   container.style.position = 'absolute';
@@ -19,13 +18,17 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
   container.style.top = '0'; 
   container.style.zIndex = '-9999';
   container.style.width = `${EXPORT_WIDTH}px`;
-  // Ensure container allows height expansion
   container.style.height = 'auto';
   document.body.appendChild(container);
 
   const clone = element.cloneNode(true) as HTMLElement;
   
-  // Apply styles to clone to ensure full visibility and correct layout
+  // FORCE LIGHT MODE: Remove 'dark' class and enforce white background/dark text
+  clone.classList.remove('dark');
+  clone.style.backgroundColor = '#ffffff';
+  clone.style.color = '#1f2937'; // Gray-800
+  
+  // Apply specific styles for export container
   clone.style.width = `${EXPORT_WIDTH}px`;
   clone.style.minWidth = `${EXPORT_WIDTH}px`;
   clone.style.height = 'auto'; 
@@ -35,27 +38,16 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
   clone.style.padding = '20px';
   clone.style.border = 'none';
   
-  // Force table layout to auto to allow expansion
+  // Force table layout to auto
   const tables = clone.getElementsByTagName('table');
   for (let i = 0; i < tables.length; i++) {
       tables[i].style.width = '100%';
       tables[i].style.tableLayout = 'auto';
+      // Ensure table text is dark
+      tables[i].style.color = '#1f2937';
   }
 
-  // Handle Dark Mode
-  const isDark = document.documentElement.classList.contains('dark');
-  if (isDark) {
-      clone.classList.add('dark');
-      clone.style.backgroundColor = '#111827';
-      clone.style.color = '#f3f4f6';
-  } else {
-      clone.classList.remove('dark');
-      clone.style.backgroundColor = '#ffffff';
-      clone.style.color = '#111827';
-  }
-
-  // Replace Inputs/Textareas with Divs for proper rendering
-  // We need to match elements by traversing both trees
+  // Handle Inputs/Textareas
   const originalInputs = element.querySelectorAll('input, textarea, select');
   const cloneInputs = clone.querySelectorAll('input, textarea, select');
 
@@ -75,18 +67,17 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
            
            div.className = cloned.className;
            
-           // Copy visual styles
-           div.style.backgroundColor = computed.backgroundColor;
-           div.style.border = computed.border;
+           // Force light styling for values
+           div.style.backgroundColor = '#ffffff'; // White bg
+           div.style.border = '1px solid #e5e7eb'; // Light gray border
            div.style.borderRadius = computed.borderRadius;
            div.style.padding = computed.padding;
-           div.style.color = computed.color;
+           div.style.color = '#000000'; // Black text
            div.style.fontSize = computed.fontSize;
            div.style.fontWeight = computed.fontWeight;
            div.style.textAlign = computed.textAlign;
            div.style.fontFamily = computed.fontFamily;
 
-           // Layout styles to ensure visibility
            div.style.display = 'flex';
            div.style.alignItems = 'center';
            div.style.minHeight = computed.height === 'auto' ? '30px' : computed.height;
@@ -95,10 +86,9 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
            div.style.whiteSpace = 'pre-wrap';
            div.style.wordBreak = 'break-word';
            
-           // Flex alignment based on text align and direction (RTL)
            if (computed.textAlign === 'center') div.style.justifyContent = 'center';
            else if (computed.textAlign === 'left') div.style.justifyContent = 'flex-end'; 
-           else div.style.justifyContent = 'flex-start'; // Right (default RTL)
+           else div.style.justifyContent = 'flex-start';
 
            div.textContent = input.value;
 
@@ -110,11 +100,12 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
            const computed = window.getComputedStyle(original);
            
            div.className = cloned.className;
-           div.style.backgroundColor = computed.backgroundColor;
-           div.style.border = computed.border;
+           // Force light styling
+           div.style.backgroundColor = '#ffffff';
+           div.style.border = '1px solid #e5e7eb';
            div.style.borderRadius = computed.borderRadius;
            div.style.padding = computed.padding;
-           div.style.color = computed.color;
+           div.style.color = '#000000';
            div.style.fontSize = computed.fontSize;
            div.style.textAlign = computed.textAlign;
 
@@ -130,16 +121,35 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
       }
   }
 
+  // Ensure all text elements in clone are dark
+  const allElements = clone.querySelectorAll('*');
+  allElements.forEach((el) => {
+      if (el instanceof HTMLElement) {
+          // If explicitly white text from dark mode, make it dark
+          if (el.classList.contains('text-white') || el.classList.contains('dark:text-white')) {
+             el.style.color = '#1f2937';
+             el.classList.remove('text-white', 'dark:text-white');
+          }
+          // If bg is dark, make it white/light
+          if (el.classList.contains('bg-gray-800') || el.classList.contains('dark:bg-gray-800')) {
+             el.style.backgroundColor = '#ffffff';
+          }
+          if (el.classList.contains('bg-gray-700') || el.classList.contains('dark:bg-gray-700')) {
+             el.style.backgroundColor = '#f3f4f6';
+          }
+      }
+  });
+
   // Footer
   const footer = document.createElement('div');
   footer.innerText = 'جواد بابائی | mrhonaramoz.ir';
   footer.style.textAlign = 'center';
   footer.style.marginTop = '24px';
   footer.style.paddingTop = '12px';
-  footer.style.borderTop = isDark ? '1px solid #374151' : '1px solid #e5e7eb';
+  footer.style.borderTop = '1px solid #e5e7eb';
   footer.style.fontSize = '12px';
   footer.style.fontWeight = '700';
-  footer.style.color = isDark ? '#9ca3af' : '#6b7280';
+  footer.style.color = '#6b7280';
   footer.style.fontFamily = 'Vazirmatn, sans-serif';
   clone.appendChild(footer);
 
@@ -152,7 +162,7 @@ export const shareElementAsImage = async (elementId: string, title: string) => {
     const canvas = await html2canvas(clone, {
       scale: 2,
       useCORS: true,
-      backgroundColor: isDark ? '#111827' : '#ffffff',
+      backgroundColor: '#ffffff', // Force white canvas bg
       width: EXPORT_WIDTH,
       windowWidth: EXPORT_WIDTH,
       height: clone.offsetHeight + 40,

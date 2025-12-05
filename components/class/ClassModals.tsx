@@ -1,6 +1,8 @@
 
 import React from 'react';
 import { Icons } from '../Icons';
+import { ClassType } from '../../types';
+import { createSessionsForCourse } from '../../helpers/sessionHelpers';
 
 interface AddStudentModalProps {
     isOpen: boolean;
@@ -38,7 +40,6 @@ export const AddStudentModal: React.FC<AddStudentModalProps> = ({ isOpen, onClos
                     />
                 </div>
 
-                {/* Batch Import Button */}
                 <div className="mb-4 relative border-t pt-4">
                     <p className="text-xs text-center text-gray-400 mb-2">یا وارد کردن لیست از اکسل</p>
                     <input type="file" accept=".xlsx, .xls" onChange={handleExcelImport} className="absolute inset-0 opacity-0 cursor-pointer" />
@@ -90,7 +91,9 @@ interface NewSessionModalProps {
     setNewSessionDay: (val: string) => void;
     newSessionModule: number;
     setNewSessionModule: (val: number) => void;
+    classType: ClassType; 
     handleConfirmCreateSession: () => void;
+    isEditing?: boolean;
 }
 
 export const NewSessionModal: React.FC<NewSessionModalProps> = ({ 
@@ -98,9 +101,14 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({
     newSessionDate, setNewSessionDate, 
     newSessionDay, setNewSessionDay, 
     newSessionModule, setNewSessionModule,
-    handleConfirmCreateSession 
+    classType,
+    handleConfirmCreateSession,
+    isEditing = false
 }) => {
     if (!isOpen) return null;
+
+    const periods = createSessionsForCourse({ type: classType });
+
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white dark:bg-gray-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl">
@@ -108,19 +116,21 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({
                     <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center mx-auto mb-4 text-purple-600 dark:text-purple-400">
                         <Icons.Calendar size={32} />
                     </div>
-                    <h3 className="text-xl font-black text-gray-900 dark:text-white">جلسه جدید</h3>
+                    <h3 className="text-xl font-black text-gray-900 dark:text-white">{isEditing ? 'ویرایش جلسه' : 'جلسه جدید'}</h3>
                 </div>
                 
                 <div className="space-y-4 mb-6">
                     <div>
-                        <label className="text-xs font-bold text-gray-500 mb-1 block px-1">پودمان</label>
+                        <label className="text-xs font-bold text-gray-500 mb-1 block px-1">
+                            {classType === ClassType.TERM ? 'ترم' : 'پودمان'}
+                        </label>
                         <select 
                             value={newSessionModule} 
                             onChange={e => setNewSessionModule(Number(e.target.value))}
                             className="w-full p-3 rounded-xl bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 text-center font-bold dark:text-white outline-none"
                         >
-                            {[1, 2, 3, 4, 5].map(m => (
-                                <option key={m} value={m}>پودمان {m}</option>
+                            {periods.map(p => (
+                                <option key={p.id} value={p.id}>{p.label}</option>
                             ))}
                         </select>
                     </div>
@@ -136,7 +146,7 @@ export const NewSessionModal: React.FC<NewSessionModalProps> = ({
 
                 <div className="flex gap-3">
                     <button onClick={onClose} className="flex-1 py-3 text-gray-500 font-bold">لغو</button>
-                    <button onClick={handleConfirmCreateSession} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">ایجاد</button>
+                    <button onClick={handleConfirmCreateSession} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl font-bold shadow-lg shadow-emerald-200 dark:shadow-none">{isEditing ? 'ذخیره' : 'ایجاد'}</button>
                 </div>
             </div>
         </div>
