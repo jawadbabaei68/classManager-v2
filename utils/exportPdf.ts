@@ -5,7 +5,7 @@ import { Classroom, ClassType } from "../types";
 
 // Assign vfs for client-side usage
 if (pdfFonts && pdfFonts.pdfMake) {
-    pdfMake.vfs = pdfFonts.pdfMake.vfs;
+    (pdfMake as any).vfs = vfsFonts.vfs;
 } else if (pdfFonts) {
     (pdfMake as any).vfs = pdfFonts;
 }
