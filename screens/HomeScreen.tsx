@@ -813,13 +813,13 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectClass, isAuthent
                             dir="ltr"
                         />
                         <input 
-                            type="text" required placeholder="سال تحصیلی (1403-1404)"
+                            type="text" required placeholder="سال تحصیلی (1404-1405)"
                             value={settings.currentAcademicYear} onChange={e => setSettings({...settings, currentAcademicYear: e.target.value})}
                             className="w-full bg-gray-50 dark:bg-gray-700 border dark:border-gray-600 rounded-xl p-3 text-left"
                             dir="ltr"
                         />
                         <button type="submit" className="w-full bg-emerald-600 text-white py-4 rounded-xl font-bold mt-4">شروع</button>
-                        <button type="button" onClick={handleRestoreClick} className="w-full text-emerald-600 text-sm font-bold mt-2">بازیابی اطلاعات</button>
+                        {/* <button type="button" onClick={handleRestoreClick} className="w-full text-emerald-600 text-sm font-bold mt-2">بازیابی اطلاعات</button> */}
                     </form>
                 </div>
             )}

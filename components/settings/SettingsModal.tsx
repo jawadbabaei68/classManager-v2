@@ -164,15 +164,15 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 {/* 2. Cloud Settings (Supabase) */}
                 <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                     <button onClick={() => toggleSection('cloud')} className="w-full flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-700 font-bold text-sm text-gray-900 dark:text-white">
-                        <span className="flex items-center gap-2"><Icons.Upload size={16}/> اتصال به فضای ابری (Supabase)</span>
+                        <span className="flex items-center gap-2"><Icons.Upload size={16}/> اتصال به فضای ابری (sql)</span>
                         <Icons.Back size={16} className={`transition-transform ${expandedSection === 'cloud' ? '-rotate-90' : 'rotate-90'}`}/>
                     </button>
                     {expandedSection === 'cloud' && (
                         <div className="p-4 space-y-3 bg-white dark:bg-gray-800">
-                            <div className="text-xs text-gray-500 mb-2">اطلاعات پروژه Supabase خود را وارد کنید:</div>
+                            <div className="text-xs text-gray-500 mb-2">اطلاعات پروژه sql خود را وارد کنید:</div>
                             <input 
                                 type="text" 
-                                placeholder="Supabase URL (https://xyz.supabase.co)" 
+                                placeholder="sql URL (https://sql.co)" 
                                 value={settings.supabaseUrl || ''} 
                                 onChange={e=>setSettings({...settings, supabaseUrl:e.target.value})} 
                                 className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:text-white text-xs text-left text-gray-900"
@@ -180,7 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                             />
                             <input 
                                 type="password" 
-                                placeholder="Supabase Anon Key" 
+                                placeholder="sql Key" 
                                 value={settings.supabaseKey || ''} 
                                 onChange={e=>setSettings({...settings, supabaseKey:e.target.value})} 
                                 className="w-full p-2 border rounded-lg dark:bg-gray-700 dark:text-white text-xs text-left text-gray-900"
@@ -208,7 +208,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                                     <Icons.Upload size={14} />
                                     همگام‌سازی کامل با دیتابیس رابطه‌ای
                                 </button>
-                                <p className="text-[10px] text-gray-400 mt-1 text-center">داده‌های شما در 5 جدول مجزا ذخیره می‌شوند.</p>
+                                
                             </div>
                         </div>
                     )}
@@ -257,8 +257,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
                 {/* About */}
                 <div className="text-center pt-4 border-t">
-                    <p className="text-xs font-bold text-gray-500">تولید شده توسط جواد بابائی</p>
+                    <p className="text-xs font-bold text-gray-500">ساخته شده توسط جواد بابائی</p>
                     <a href="https://mrhonaramoz.ir" className="text-[10px] text-emerald-600 block mt-1">mrhonaramoz.ir</a>
+                    <a href="https://t.me/jawadbabaei68" className="text-[10px] text-emerald-600 block mt-1">ارتباط با من</a>
                 </div>
             </div>
         </div>

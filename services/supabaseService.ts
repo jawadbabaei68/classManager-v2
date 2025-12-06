@@ -25,7 +25,7 @@ export const getSupabaseClient = async () => {
     currentKey = settings.supabaseKey;
     return supabaseInstance;
   } catch (error) {
-    console.error("Supabase Init Error", error);
+    console.error("sql Init Error", error);
     return null;
   }
 };
@@ -52,68 +52,10 @@ export const testConnection = async (url: string, key: string): Promise<{ succes
 
 export const generateSQLSchema = () => {
     return `
--- 1. جدول کلاس‌ها
-CREATE TABLE IF NOT EXISTS public.classes (
-    id TEXT PRIMARY KEY,
-    name TEXT,
-    book_name TEXT,
-    academic_year TEXT,
-    type TEXT,
-    resources JSONB, -- برای ذخیره لینک فایل‌ها
-    updated_at BIGINT
-);
+ارتباط با پشتیبان :
+    09150470023
 
--- 2. جدول دانش‌آموزان
-CREATE TABLE IF NOT EXISTS public.students (
-    id TEXT PRIMARY KEY,
-    class_id TEXT REFERENCES public.classes(id) ON DELETE CASCADE,
-    name TEXT,
-    phone_number TEXT,
-    avatar_url TEXT
-);
 
--- 3. جدول جلسات
-CREATE TABLE IF NOT EXISTS public.sessions (
-    id TEXT PRIMARY KEY,
-    class_id TEXT REFERENCES public.classes(id) ON DELETE CASCADE,
-    date TEXT,
-    day_of_week TEXT,
-    lesson_plan JSONB -- جزئیات طرح درس
-);
-
--- 4. جدول سوابق جلسه (حضور و غیاب)
-CREATE TABLE IF NOT EXISTS public.session_records (
-    unique_id TEXT PRIMARY KEY, -- ترکیب session_id و student_id
-    session_id TEXT REFERENCES public.sessions(id) ON DELETE CASCADE,
-    student_id TEXT REFERENCES public.students(id) ON DELETE CASCADE,
-    attendance TEXT,
-    discipline JSONB,
-    positive_points NUMERIC,
-    note TEXT
-);
-
--- 5. جدول نمرات
-CREATE TABLE IF NOT EXISTS public.grades (
-    student_id TEXT REFERENCES public.students(id) ON DELETE CASCADE,
-    class_id TEXT REFERENCES public.classes(id) ON DELETE CASCADE,
-    grades_modular JSONB,
-    grades_term JSONB,
-    PRIMARY KEY (student_id, class_id)
-);
-
--- فعال کردن RLS
-ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.session_records ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.grades ENABLE ROW LEVEL SECURITY;
-
--- ایجاد سیاست دسترسی کامل برای کاربر (Anon)
-CREATE POLICY "Public Access Classes" ON public.classes FOR ALL USING (true);
-CREATE POLICY "Public Access Students" ON public.students FOR ALL USING (true);
-CREATE POLICY "Public Access Sessions" ON public.sessions FOR ALL USING (true);
-CREATE POLICY "Public Access Records" ON public.session_records FOR ALL USING (true);
-CREATE POLICY "Public Access Grades" ON public.grades FOR ALL USING (true);
     `;
 };
 

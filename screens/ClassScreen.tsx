@@ -561,7 +561,7 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 font-vazir pb-20 transition-colors duration-300">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 p-6 rounded-b-3xl shadow-sm border-b border-gray-100 dark:border-gray-700 sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-800 p-4 rounded-b-3xl shadow-sm border-b border-gray-100 dark:border-gray-700 sticky top-0 z-40">
         <div className="flex justify-between items-start mb-4">
             <button onClick={onBack} className="bg-gray-100 dark:bg-gray-700 p-2 rounded-full text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"><Icons.Back size={20} /></button>
             <div className="text-center">
@@ -658,7 +658,6 @@ export const ClassScreen: React.FC<ClassScreenProps> = ({ classroom, onBack }) =
         newSessionDate={newSessionDate}
         setNewSessionDate={setNewSessionDate}
         newSessionDay={newSessionDay}
-        setNewSessionDay={setNewSessionDay}
         newSessionModule={newSessionModule}
         setNewSessionModule={setNewSessionModule}
         classType={data.type}

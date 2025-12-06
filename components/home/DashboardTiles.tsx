@@ -22,7 +22,7 @@ export const DashboardTiles: React.FC<DashboardTilesProps> = ({
   setShowBackupModal,
   setShowSettingsModal,
   setReportStep,
-  version = '3.1.2'
+  version = '3.1.1'
 }) => {
   return (
     <div className="max-w-4xl mx-auto">
@@ -32,7 +32,7 @@ export const DashboardTiles: React.FC<DashboardTilesProps> = ({
             <div className="w-16 h-16 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Icons.BookOpen size={36} />
             </div>
-            <span className="font-black text-sm text-gray-800 dark:text-white">کلاس‌ها</span>
+            <span className="font-black text-sm text-gray-800 dark:text-white">کلاس‌های من</span>
         </button>
 
          {/* 2. Daily Absentees */}
@@ -40,7 +40,7 @@ export const DashboardTiles: React.FC<DashboardTilesProps> = ({
             <div className="w-16 h-16 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Icons.UserX size={36} />
             </div>
-            <span className="font-black text-sm text-gray-800 dark:text-white">غایبین</span>
+            <span className="font-black text-sm text-gray-800 dark:text-white"> غایبین امروز</span>
         </button>
 
          {/* 3. Top Reports */}
@@ -48,7 +48,7 @@ export const DashboardTiles: React.FC<DashboardTilesProps> = ({
             <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 text-amber-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
                 <Icons.Trophy size={36} />
             </div>
-            <span className="font-black text-sm text-gray-800 dark:text-white">برترین‌ها</span>
+            <span className="font-black text-sm text-gray-800 dark:text-white">کم تلاشها</span>
         </button>
 
         {/* 4. Student Search */}
@@ -87,6 +87,7 @@ export const DashboardTiles: React.FC<DashboardTilesProps> = ({
       <div className="mt-8 text-center text-gray-400 text-xs">
            <p>نسخه: {version} </p>
            <p>آقای هنرآموز</p>
+           <p>تمامی حقوق محفوظ و متعلق به جواد بابائی است</p>
       </div>
     </div>
   );

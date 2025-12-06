@@ -34,11 +34,11 @@ export const ClassList: React.FC<ClassListProps> = ({
                 <Icons.Home className="w-16 h-16 text-emerald-300 mb-4" />
                 <p className="text-emerald-900 dark:text-emerald-100 font-black text-xl mb-2">سال تحصیلی {academicYear}</p>
                 <p className="text-sm text-emerald-700 mb-4">هیچ کلاسی ثبت نشده است.</p>
-                <button onClick={() => setShowModal(true)} className="text-emerald-600 border border-emerald-200 px-2 py-2 rounded-xl">+ ایجاد کلاس</button>
+                <button onClick={() => setShowModal(true)} className="text-emerald-600 border border-emerald-200 px-4 py-2 rounded-xl">+ ایجاد کلاس</button>
             </div>
         ) : (
             filteredClasses.map((cls) => (
-                <div key={cls.id} onClick={() => onSelectClass(cls)} className="bg-white dark:bg-gray-800 p-5 rounded-2xl shadow-sm hover:shadow-md border border-emerald-100/50 dark:border-gray-700 transition-all cursor-pointer relative overflow-hidden group">
+                <div key={cls.id} onClick={() => onSelectClass(cls)} className="bg-white dark:bg-gray-800 p-2 rounded-2xl shadow-sm hover:shadow-md border border-emerald-100/50 dark:border-gray-700 transition-all cursor-pointer relative overflow-hidden group">
                 <div className="absolute top-0 left-0 w-1 h-full bg-emerald-500 group-hover:w-2 transition-all"></div>
                 <div className="flex justify-between items-start pl-2">
                     <div>

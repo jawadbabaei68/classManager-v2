@@ -4,6 +4,14 @@
 @tailwind utilities;
 
 @layer base {
+  @font-face {
+    font-family: 'Vazirmatn';
+    src: url('/fonts/Vazir-Bold.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+  }
+
   body {
     @apply text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-900;
     font-family: 'Vazirmatn', sans-serif;
@@ -12,8 +20,9 @@
   }
   
   /* Fix for inputs being unreadable in light mode if specific classes are missing */
-  input, textarea, select {
+  input, textarea, select, button {
     @apply text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500;
+    font-family: 'Vazirmatn', sans-serif;
   }
 }
 

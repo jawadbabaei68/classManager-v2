@@ -78,19 +78,19 @@ export const SessionListTab: React.FC<SessionListTabProps> = ({ sessions, classT
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 pt-1 px-1">
                 <button 
                     onClick={() => setActiveModuleFilter('all')}
-                    className={`px-2 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all border shadow-sm ${
+                    className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all border shadow-sm ${
                         activeModuleFilter === 'all' 
                         ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-200 dark:shadow-none' 
                         : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }`}
                 >
-                    همه
+                    همه جلسات
                 </button>
                 {periods.map(p => (
                     <button 
                         key={p.id}
                         onClick={() => setActiveModuleFilter(p.id)}
-                        className={`px-2 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all border shadow-sm ${
+                        className={`px-4 py-2 rounded-xl text-sm font-bold whitespace-nowrap transition-all border shadow-sm ${
                             activeModuleFilter === p.id 
                             ? 'bg-emerald-600 text-white border-emerald-600 shadow-emerald-200 dark:shadow-none' 
                             : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -167,7 +167,7 @@ export const GradesTab: React.FC<GradesTabProps> = ({ data, updateModularGrade, 
                         <button
                             key={p.id}
                             onClick={() => setActiveModule(p.id as any)}
-                            className={`px-2 py-2 rounded-t-xl font-bold text-sm transition-all whitespace-nowrap border-b-2 ${
+                            className={`px-4 py-2 rounded-t-xl font-bold text-sm transition-all whitespace-nowrap border-b-2 ${
                                 activeModule === p.id 
                                     ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 border-emerald-500' 
                                     : 'text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 border-transparent hover:bg-gray-50 dark:hover:bg-gray-700'
@@ -207,7 +207,7 @@ export const GradesTab: React.FC<GradesTabProps> = ({ data, updateModularGrade, 
                             
                             return (
                                 <tr key={student.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
-                                    <td className="p-3 font-bold text-gray-900 dark:text-white sticky right-0 bg-white dark:bg-gray-800 border-l dark:border-gray-700 z-10 text-xs truncate max-w-[120px]">{student.name}</td>
+                                    <td className="p-3 font-bold text-gray-900 dark:text-white sticky right-0 bg-white dark:bg-gray-800 border-l dark:border-gray-700 z-10 text-xs max-w-[120px]">{student.name}</td>
                                     {data.type === ClassType.MODULAR ? (
                                         (() => {
                                             const grade = perf?.gradesModular.find(g => g.moduleId === activeModule);

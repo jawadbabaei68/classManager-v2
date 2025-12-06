@@ -296,19 +296,19 @@ export const SessionScreen: React.FC<SessionScreenProps> = ({ session, students,
                         <div className="flex bg-gray-50 dark:bg-gray-700 rounded-xl p-1.5 border border-gray-100 dark:border-gray-600 w-full sm:w-auto shrink-0">
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.PRESENT })}
-                                className={`flex-1 sm:flex-none px-2 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.PRESENT ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
                                 <Icons.Present size={20} />
                             </button>
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.LATE })}
-                                className={`flex-1 sm:flex-none px-2 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.LATE ? 'bg-amber-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.LATE ? 'bg-amber-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
                                 <Icons.Late size={20} />
                             </button>
                             <button 
                                 onClick={() => updateRecord(student.id, { attendance: AttendanceStatus.ABSENT })}
-                                className={`flex-1 sm:flex-none px-2 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.ABSENT ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
+                                className={`flex-1 sm:flex-none px-4 py-2 rounded-lg transition-all flex justify-center items-center ${record.attendance === AttendanceStatus.ABSENT ? 'bg-red-500 text-white shadow-md' : 'text-gray-400 hover:bg-white dark:hover:bg-gray-600'}`}
                             >
                                 <Icons.Absent size={20} />
                             </button>
