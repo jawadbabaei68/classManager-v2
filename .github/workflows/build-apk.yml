@@ -24,15 +24,12 @@ jobs:
 
       - name: Install Dependencies
         run: npm install
-
-      # 💡 گام جدید: اضافه کردن پلتفرم اندروید Capacitor 
-      # این کار مطمئن می‌شود که دایرکتوری 'android' برای Capacitor آماده است.
-      - name: Add Capacitor Android Platform
-        run: npx cap add android
+        
+      # ⚠️ مرحله 'Add Capacitor Android Platform' حذف شد.
+      # چون دایرکتوری 'android' از قبل در مخزن شما وجود دارد.
 
       - name: Build Web Assets
-        # اگر متغیرهای محیطی برای بیلد وب مورد نیازند، باید در این مرحله تعریف شوند.
-        # توجه: متغیرهای محیطی در React Native (به ویژه برای بیلد وب) گاهی اوقات باید مستقیماً در اسکریپت بیلد هندل شوند.
+        # این مرحله دایرکتوری 'build' را ایجاد می‌کند.
         env:
           VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
         run: npm run build
@@ -43,8 +40,6 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           
-      # 💡 گام جدید: Setup Gradle Cache
-      # این کار باعث افزایش سرعت بیلد می‌شود.
       - name: Setup Gradle Cache
         uses: actions/cache@v4
         with:
@@ -56,15 +51,13 @@ jobs:
             ${{ runner.os }}-gradle-
 
       - name: Sync Capacitor
-        # این مرحله اکنون دایرکتوری 'build' (که با npm run build ایجاد شده) را 
-        # با دایرکتوری 'android' (که با npx cap add android ایجاد شده) سینک می‌کند.
+        # این مرحله فایل‌های داخل 'build' را به 'android' کپی می‌کند.
         run: npx cap sync android
 
       - name: Build APK with Gradle
         run: |
           cd android
           chmod +x gradlew
-          # استفاده از --no-daemon می‌تواند در محیط‌های CI پایدارتر باشد
           ./gradlew assembleDebug --no-daemon
 
       - name: Upload APK
@@ -72,7 +65,6 @@ jobs:
         with:
           name: class-manager-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
-
 
 
 
