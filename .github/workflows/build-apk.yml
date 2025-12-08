@@ -1,123 +1,148 @@
-# name: Build Android APK
-
-# on:
-#   push:
-#     branches:
-#       - main
-#       - master
-
-# jobs:
-#   build:
-#     name: Build APK
-#     runs-on: ubuntu-latest
-#     permissions:
-#       contents: read
-#       packages: write
-#     steps:
-#       - name: Checkout source
-#         uses: actions/checkout@v4
-
-#       - name: Setup Node.js
-#         uses: actions/setup-node@v4
-#         with:
-#           node-version: 20
-
-#       - name: Install Dependencies
-#         run: npm install
-
-#       - name: Build Web Assets
-#         env:
-#           VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
-#         run: npm run build
-
-#       - name: Setup Java
-#         uses: actions/setup-java@v4
-#         with:
-#           distribution: 'temurin'
-#           java-version: '17'
-
-#       - name: Sync Capacitor
-#         run: npx cap sync android
-
-#       - name: Build APK with Gradle
-#         run: |
-#           cd android
-#           chmod +x gradlew
-#           ./gradlew assembleDebug
-
-#       - name: Upload APK
-#         uses: actions/upload-artifact@v4
-#         with:
-#           name: class-manager-apk
-#           path: android/app/build/outputs/apk/debug/app-debug.apk
-
-name: Android CI
+name: Build Android APK
 
 on:
   push:
     branches:
-      - main  # یا هر برنچ دیگری که برای بیلد استفاده می‌کنید
-  workflow_dispatch:
+      - main
+      - master
 
 jobs:
   build:
+    name: Build APK
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Dependencies
+        run: npm install
+
+      # 💡 گام جدید: اضافه کردن پلتفرم اندروید Capacitor 
+      # این کار مطمئن می‌شود که دایرکتوری 'android' برای Capacitor آماده است.
+      - name: Add Capacitor Android Platform
+        run: npx cap add android
+
+      - name: Build Web Assets
+        # اگر متغیرهای محیطی برای بیلد وب مورد نیازند، باید در این مرحله تعریف شوند.
+        # توجه: متغیرهای محیطی در React Native (به ویژه برای بیلد وب) گاهی اوقات باید مستقیماً در اسکریپت بیلد هندل شوند.
+        env:
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+        run: npm run build
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      # 💡 گام جدید: Setup Gradle Cache
+      # این کار باعث افزایش سرعت بیلد می‌شود.
+      - name: Setup Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Sync Capacitor
+        # این مرحله اکنون دایرکتوری 'build' (که با npm run build ایجاد شده) را 
+        # با دایرکتوری 'android' (که با npx cap add android ایجاد شده) سینک می‌کند.
+        run: npx cap sync android
+
+      - name: Build APK with Gradle
+        run: |
+          cd android
+          chmod +x gradlew
+          # استفاده از --no-daemon می‌تواند در محیط‌های CI پایدارتر باشد
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: class-manager-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+
+
+
+
+# name: Android CI
+
+# on:
+#   push:
+#     branches:
+#       - main  # یا هر برنچ دیگری که برای بیلد استفاده می‌کنید
+#   workflow_dispatch:
+
+# jobs:
+#   build:
+#     runs-on: ubuntu-latest
     
   
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
+#       - name: Set up Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '18'
 
-      - name: Install dependencies
-        run: npm install
+#       - name: Install dependencies
+#         run: npm install
 
-      # --- مرحله حیاتی جدید: اطمینان از وجود پوشه web ---
-      - name: Create Dummy Web Directory for Capacitor Sync
-        run: mkdir -p web && touch web/index.html 
-        # ما پوشه web و index.html را در CI ایجاد می‌کنیم تا npx cap sync خطا ندهد
+#       # --- مرحله حیاتی جدید: اطمینان از وجود پوشه web ---
+#       - name: Create Dummy Web Directory for Capacitor Sync
+#         run: mkdir -p web && touch web/index.html 
+#         # ما پوشه web و index.html را در CI ایجاد می‌کنیم تا npx cap sync خطا ندهد
 
-      # --- مرحله حیاتی جدید: همگام سازی مجدد در CI ---
-      - name: Run Capacitor Sync (to generate missing Gradle files)
-        run: npx cap sync android
-        # این دستور باید فایل های گمشده مثل cordova.variables.gradle را تولید کند.
+#       # --- مرحله حیاتی جدید: همگام سازی مجدد در CI ---
+#       - name: Run Capacitor Sync (to generate missing Gradle files)
+#         run: npx cap sync android
+#         # این دستور باید فایل های گمشده مثل cordova.variables.gradle را تولید کند.
         
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+#       - name: Make gradlew executable
+#         run: chmod +x android/gradlew
 
-      - name: Build Android Release (APK)
-        # توجه: اگر بیلد هنوز خطا داد، باید ./gradlew را در همین مرحله و در ریشه اجرا کنیم، نه cd android && ./gradlew
-        # اما فعلا همان روش قبل را نگه می‌داریم
-        run: cd android && ./gradlew assembleRelease
+#       - name: Build Android Release (APK)
+#         # توجه: اگر بیلد هنوز خطا داد، باید ./gradlew را در همین مرحله و در ریشه اجرا کنیم، نه cd android && ./gradlew
+#         # اما فعلا همان روش قبل را نگه می‌داریم
+#         run: cd android && ./gradlew assembleRelease
    
      
 
-      - name: Add Capacitor Android Platform (if needed)
-        run: npx cap add android || true # اگر قبلاً اضافه شده، خطا نمی‌دهد
+#       - name: Add Capacitor Android Platform (if needed)
+#         run: npx cap add android || true # اگر قبلاً اضافه شده، خطا نمی‌دهد
 
         
-      - name: Create React Native JS Bundle
-        run: |
-          npx react-native bundle --platform android \
-          --dev false \
-          --entry-file index.js \
-          --bundle-output android/app/src/main/assets/index.android.bundle \
-          --assets-dest android/app/src/main/res/
-      # --- بخش بیلد اندروید ---
-      - name: Make gradlew executable
-        run: chmod +x android/gradlew
+#       - name: Create React Native JS Bundle
+#         run: |
+#           npx react-native bundle --platform android \
+#           --dev false \
+#           --entry-file index.js \
+#           --bundle-output android/app/src/main/assets/index.android.bundle \
+#           --assets-dest android/app/src/main/res/
+#       # --- بخش بیلد اندروید ---
+#       - name: Make gradlew executable
+#         run: chmod +x android/gradlew
 
-      - name: Build Android Debug (APK)
-        run: cd android && ./gradlew assembleDebug
+#       - name: Build Android Debug (APK)
+#         run: cd android && ./gradlew assembleDebug
 
-      - name: Upload Debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: app-debug-apk
-          # مسیر بیلد debug معمولا این است:
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+#       - name: Upload Debug APK
+#         uses: actions/upload-artifact@v4
+#         with:
+#           name: app-debug-apk
+#           # مسیر بیلد debug معمولا این است:
+#           path: android/app/build/outputs/apk/debug/app-debug.apk
